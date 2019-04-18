@@ -58,23 +58,27 @@ struct msg receive_msg(int msqid, int type){
     return rcvd_init_msg;
 }
 
-void answer(); // ogarnąć: w odpowiedzi rodzajem komunikatu 
+// void answer(); // ogarnąć: w odpowiedzi rodzajem komunikatu 
 // ma być informacja identyfikująca czekającego na nią klienta.
 /////////////// a table of client keys??? NA RAZIE DLA JEDNEGO
 
 int main(void){
-    key_t serv_key = 112;
+    // key_t serv_key = ;
     int serv_msqid; // id of server queue for clients to send their messages to server
     int cl_msqid;
     ///////////// probably there should be a table of client keys
-    
+
     int msgCount = -1;
     // give the process has read & write permission
-    if((serv_msqid = msgget(serv_key, 0666)) < 0){
+    if((serv_msqid = msgget(SERV_KEY, 0666)) < 0){
         die_errno("msget");
     }
     // receive message
-    msg rcvd_init_msg = receive_msg(serv_msqid, INIT);
+    // msg rcvd_init_msg = receive_msg(serv_msqid, INIT);
+    msg rcvd_init_msg;
+    if(msgrcv(serv_msqid, &rcvd_init_msg, MAX_MSG_SIZE, 1, 0) < 0){
+        die_errno("server msgrcv");
+    }
     ++msgCount;
     printf("RECEIVED: %s\n", rcvd_init_msg.mtext);
 

@@ -41,6 +41,7 @@ struct msg receive_msg(int serv_msqid, int type) { //, int key){
 
 int main(void){
     key_t key;
+    int serv_msqid;
     int msqid;
     // getenv() - searches the env list in order to find the env variable name 
     if((key = ftok(getenv("HOME"), PROJ_ID)) < 0){
@@ -58,10 +59,15 @@ int main(void){
     
     printf("SENDING: %s\n", init_msg.mtext);
 
-    // now send
-    if(msgsnd(msqid, &init_msg, strlen(init_msg.mtext)+1, IPC_NOWAIT) < 0){
+    // get server msqid:
+    if((serv_msqid = msgget(SERV_KEY, 0666)) < 0){
+        die_errno("msget");
+    }
+    // now send to server msgqueue the key of the newly created queue
+    if(msgsnd(serv_msqid, &init_msg, strlen(init_msg.mtext)+1, IPC_NOWAIT) < 0){
        die_errno("msgsnd");
     }
+    printf("SENT\n");
 
     // //-------------------
     // // receive message

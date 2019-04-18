@@ -3,6 +3,7 @@
 
 #define MAX_MSG_SIZE 100
 #define PROJ_ID 101
+#define SERV_KEY 112
 
 typedef enum msgtype {
     INIT = 1, ANS = 999
