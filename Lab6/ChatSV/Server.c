@@ -23,6 +23,7 @@ standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w który
 #include <sys/msg.h> // msgget()
 #include <stdlib.h> // system()
 #include <string.h>
+#include <signal.h> // sigaction(), sigprocmask()
 #include "Server.h"
 
 key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
@@ -30,8 +31,10 @@ key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
 /*
 clients
 change login_client()
-work on atexit
+SIGINThandler() - to do - receive stop from all clients
 
+Zlecenia powinny być obsługiwane zgodnie z priorytetami, 
+najwyższy priorytet ma STOP, potem LIST oraz FRIENDS i reszta. 
 
 Serwer może wysłać do klientów komunikaty:
 inicjujący pracę klienta (kolejka główna serwera)
@@ -45,6 +48,7 @@ int flags = IPC_CREAT | 0666;
 int serv_msqid; // id of server queue for clients to send their messages to server
 int clientCount;
 int command = IPC_RMID; // for atexit()
+struct sigaction act;
 
 typedef struct msg{
     long mtype;
@@ -76,13 +80,13 @@ void login_client(){
     if(msgrcv(serv_msqid, &rcvd_init_msg, MAX_MSG_SIZE, 1, 0) < 0){
         die_errno("server msgrcv");
     }
-    ++clientCount;
     printf("RECEIVED: %s\n", rcvd_init_msg.mtext);
+    clients[++clientCount] = (int) strtol(rcvd_init_msg.mtext, NULL, 10);
 
     //-------------------
     // answer 
     // client using their queue. we know its key because it was sent in the init msg
-    if((cl_msqid = msgget((int) strtol(rcvd_init_msg.mtext, NULL, 10), flags)) < 0){
+    if((cl_msqid = msgget(clients[clientCount], flags)) < 0){
         die_errno("msget, answering client");
     }
     printf("CLIENT ID: %d\n", cl_msqid);
@@ -103,7 +107,38 @@ void rm_queue(void){
     }
 }
 
+void stop_client(key_t cl_key){
+    // do sth here
+
+
+
+}
+
+void SIGINThandler(int signum){
+    printf("SERVER: Received SIGINT. Quiting...");
+    // wait for all clients to send SIGINT
+
+    // for(int i = 0; i < clientCount; i++)
+    //     stop_client(clients[i]);
+    exit(0);
+}
+
+void set_signal_handling(){
+     act.sa_handler = SIGINThandler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    if(sigaction(SIGINT, &act, NULL) < 0){
+        die_errno("sigaction");
+    }
+    if(sigprocmask(SIG_SETMASK, &act.sa_mask, NULL) < 0){
+        die_errno("sigprocmask");
+    }
+}
+
 int main(void){
+   
+   set_signal_handling();
+
     clientCount = -1;
     // give the process read & write permission
     if((serv_msqid = msgget(SERV_KEY, flags)) < 0){

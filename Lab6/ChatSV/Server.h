@@ -7,7 +7,7 @@
 #define SERV_KEY 112
 
 typedef enum msgtype {
-    INIT = 1, ANS = 999
+    INIT = 1, ANS = 999, STOP = 10
 } msgtype;
 
 #endif
