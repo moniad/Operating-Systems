@@ -1,5 +1,8 @@
-all:
+all: Client.o Server.o
 	# make clean
+	echo Run on two terminals
+	# make Client.o
+	# make Server.o
 	make run
 
 Client.o: Client.c
