@@ -63,6 +63,7 @@ int main(void){
     if((serv_msqid = msgget(SERV_KEY, 0666)) < 0){
         die_errno("msget");
     }
+    printf("SERVER ID: %d", serv_msqid);
     // now send to server msgqueue the key of the newly created queue
     if(msgsnd(serv_msqid, &init_msg, strlen(init_msg.mtext)+1, IPC_NOWAIT) < 0){
        die_errno("msgsnd");

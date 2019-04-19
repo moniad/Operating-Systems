@@ -1,5 +1,5 @@
 all:
-	make clean
+	# make clean
 	make run
 
 Client.o: Client.c

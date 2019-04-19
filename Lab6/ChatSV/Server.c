@@ -70,7 +70,7 @@ int main(void){
 
     int msgCount = -1;
     // give the process has read & write permission
-    if((serv_msqid = msgget(SERV_KEY, 0666)) < 0){
+    if((serv_msqid = msgget(SERV_KEY, flags)) < 0){
         die_errno("msget");
     }
     // receive message
