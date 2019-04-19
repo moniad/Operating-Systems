@@ -2,6 +2,7 @@
 #define SERVER_H
 
 #define MAX_MSG_SIZE 100
+#define MAX_CL_COUNT 200
 #define PROJ_ID 101
 #define SERV_KEY 112
 

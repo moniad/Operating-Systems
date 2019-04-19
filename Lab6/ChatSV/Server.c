@@ -1,6 +1,6 @@
 /*Napisz prosty chat typu klient-serwer, w którym komunikacja zrealizowana jest za 
 pomocą kolejek komunikatów - jedna, na zlecenia klientów dla serwera, druga, prywatna,
- na odpowiedzi.
+na odpowiedzi.
 
 Wysyłane zlecenia klientow do serwera mają zawierać 
 1) rodzaj zlecenia jako rodzaj komunikatu
@@ -9,11 +9,7 @@ Wysyłane zlecenia klientow do serwera mają zawierać
 W odpowiedzi rodzajem komunikatu ma być 
 1) informacja identyfikująca czekającego na nią klienta.
 
-Klient bezpośrednio po uruchomieniu tworzy kolejkę z unikalnym kluczem IPC  i wysyła 
-jej klucz komunikatem do serwera (komunikat INIT). Po otrzymaniu takiego komunikatu, 
-serwer otwiera kolejkę klienta, przydziela klientowi identyfikator (np. numer 
-w kolejności zgłoszeń) i odsyła ten identyfikator do klienta (komunikacja w kierunku 
-serwer->klient odbywa się za pomocą kolejki klienta). Po otrzymaniu identyfikatora, 
+ Po otrzymaniu identyfikatora, 
 klient rozpoczyna wysyłanie zleceń do serwera (w pętli), zlecenia są czytane ze 
 standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w którym
  w każdej linii znajduje się jeden komunikat (napisanie po stronie klienta READ 
@@ -29,12 +25,26 @@ standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w który
 #include <string.h>
 #include "Server.h"
 
+key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
+
+/*
+clients
+change login_client()
+work on atexit
+
+
+Serwer może wysłać do klientów komunikaty:
+inicjujący pracę klienta (kolejka główna serwera)
+wysyłający odpowiedzi do klientów (kolejki klientów)
+informujący klientów o zakończeniu pracy serwera - po wysłaniu takiego sygnału i odebraniu wiadomości STOP od wszystkich klientów serwer usuwa swoją kolejkę i kończy pracę. (kolejki klientów)
+Należy obsłużyć przerwanie działania serwera lub klienta za pomocą CTRL+C. Po stronie klienta obsługa tego sygnału jest równoważna z wysłaniem komunikatu STOP.
+
+
+*/
 int flags = IPC_CREAT | 0666;
 int serv_msqid; // id of server queue for clients to send their messages to server
 int clientCount;
-
-// do it differently, IT MIGHT WORK ONLY FOR ONE PROCESS ???
-
+int command = IPC_RMID; // for atexit()
 
 typedef struct msg{
     long mtype;
@@ -54,7 +64,11 @@ struct msg receive_msg(int msqid, int type){
     return rcvd_init_msg;
 }
 
+//change it
 void login_client(){
+    if(clientCount == MAX_CL_COUNT){
+        fprintf(stderr, "%s", "Cannot login new client. Too many clients logged in. Wait");
+    }
     int cl_msqid;
     // receive message
     // msg rcvd_init_msg = receive_msg(serv_msqid, INIT);
@@ -83,19 +97,22 @@ void login_client(){
     printf("MSG SENT TO CLIENT\n");
 }
 
-/////////////// a table of client keys??? NA RAZIE DLA JEDNEGO
+void rm_queue(void){
+    if(msgctl(serv_msqid, command, NULL) < 0){
+        die_errno("ipcrm");
+    }
+}
 
 int main(void){
-    // key_t serv_key = ;
-    
-    ///////////// probably there should be a table of client keys
-
     clientCount = -1;
-    // give the process has read & write permission
+    // give the process read & write permission
     if((serv_msqid = msgget(SERV_KEY, flags)) < 0){
         die_errno("msget");
     }
-    login_client();
+    if(atexit(rm_queue) < 0){
+        die_errno("atexit");
+    }
+    login_client(); // may need changes
 
     return 0;
 }
