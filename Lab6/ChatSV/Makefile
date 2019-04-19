@@ -1,9 +1,9 @@
 all: Client.o Server.o
-	# make clean
+	make clean
 	echo Run on two terminals
-	# make Client.o
-	# make Server.o
-	make run
+	make Client.o
+	make Server.o
+	# make run
 
 Client.o: Client.c
 	gcc -Wall -o Client.o Client.c
@@ -18,3 +18,6 @@ run: Client.o Server.o
 
 clean:
 	rm *.o
+	ipcrm --all=msg 
+	ipcrm --all=sem
+	ipcrm --all=shm

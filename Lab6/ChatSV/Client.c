@@ -61,7 +61,7 @@ int main(void){
        die_errno("msgsnd");
     }
 
-    // receive message
+    // receive message with ID
     msg rcvd_msg = receive_msg(msqid, ANS); 
     printf("RECEIVED ID (NUMBER IN THE QUEUE): %s\n", rcvd_msg.mtext);
     printf("ayy");

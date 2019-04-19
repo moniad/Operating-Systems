@@ -30,16 +30,11 @@ standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w który
 #include "Server.h"
 
 int flags = IPC_CREAT | 0666;
-int clientCount = -1;
-int serv_msqid;
-
-/* TYPES OF MESSAGES:
-999 - ANSWER
-*/
+int serv_msqid; // id of server queue for clients to send their messages to server
+int clientCount;
 
 // do it differently, IT MIGHT WORK ONLY FOR ONE PROCESS ???
 
-// first receiving message of type 1 - init msg
 
 typedef struct msg{
     long mtype;
@@ -92,15 +87,15 @@ void login_client(){
 
 int main(void){
     // key_t serv_key = ;
-    int serv_msqid; // id of server queue for clients to send their messages to server
     
     ///////////// probably there should be a table of client keys
 
-
+    clientCount = -1;
     // give the process has read & write permission
     if((serv_msqid = msgget(SERV_KEY, flags)) < 0){
         die_errno("msget");
     }
     login_client();
+
     return 0;
 }
