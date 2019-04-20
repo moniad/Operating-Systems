@@ -18,36 +18,18 @@
 some server stuff
 */
 
-
-
 key_t key;
+int flags = IPC_CREAT | IPC_EXCL | 0666; // IPC_EXCL - if queue already exists for key, msgget fails
 char key_string[MAX_MSG_SIZE];
-int flags = IPC_CREAT | 0666;
 int msqid; // queue for client to send their messages to server
-int serv_msqid;
-int command = IPC_RMID;
 struct sigaction act; // handle SIGINT
 char jobs_file_name[MAX_FILE_SIZE];
 char *cmd;
 char dlm[] = " \n\t";
-
-typedef struct msg{
-    long mtype;
-    char mtext[MAX_MSG_SIZE];
-} msg;
-
-typedef struct msgbuf{
-    long mtype;
-    char *mtext;
-} msgbuf;
+char def_file_name[] = "jobs.txt";
 
 void friends();
 void identify_cmd();
-
-void die_errno(char *msg){
-    perror(msg);
-    exit(1);
-}
 
 struct msg receive_msg(int serv_msqid, int type) { //, int key){
     msg rcvd_init_msg;
@@ -128,10 +110,15 @@ void stop(){
     exit(0);
 }
 
-void list(){ send_msg(LIST, key_string); }
+void list(){
+    printf("LIST\n");
+    send_msg(LIST, key_string); 
+    printf("\n");
+}
 
 char *concat_message(char *message){
     strcpy(message, cmd);
+    strcat(message, " ");
     cmd = strtok(NULL, dlm);
     while(cmd && isdigit(cmd[0])){
         strcat(message, cmd);
@@ -144,15 +131,31 @@ void echo(){
     char *message = strtok(NULL, dlm);
     send_msg(ECHO, message);
     msg rcvd_msg = receive_msg(msqid, ECHO);
-    printf("CLIENT ECHO: %s\n", rcvd_msg.mtext);
+    printf("CLIENT ECHO: %s\n\n", rcvd_msg.mtext);
 }
 
 void add(int type){
+    switch(type){
+        case ADD:
+            printf("ADD   ");
+            break;
+        case FRIENDS:
+            printf("FRIENDS   ");
+            break;
+        case DEL:
+            printf("DEL   ");
+            break;
+        default:
+            break;
+    }
     cmd = strtok(NULL, dlm);
     if(!cmd || !isdigit(cmd[0])){ // no IDs given ==> not adding anything || sending empty msg
-        if(type == FRIENDS) send_msg(FRIENDS, "");
-        else if(type == ADD) printf("No client IDs to add\n");
-        else printf("No clients to delete!\n");
+        if(type == FRIENDS) {
+            printf("CLEARING LIST...\n\n");
+            send_msg(FRIENDS, "");
+        }
+        else if(type == ADD) printf("No client IDs to add\n\n");
+        else printf("No clients to delete!\n\n");
         if(cmd) identify_cmd(); // go on, cause we read it, but didn't use it!
         return;
     }
@@ -165,12 +168,16 @@ void add(int type){
 }
 
 void to_all_or_friends(int type){
+    printf("TO ");
+    if(type == TO_ALL) printf("ALL: ");
+    else printf("FRIENDS: ");
     cmd = strtok(NULL, dlm);
     if(!cmd) die_errno("incorrect input. to_all_or_friends");
     send_msg(type, cmd);
 }
 
 void to_one(){
+    printf("TO_ONE\n");
     cmd = strtok(NULL, dlm);
     if(!cmd) die_errno("incorrect input. to_one");
     char *message = malloc(MAX_MSG_SIZE * sizeof(char));
@@ -199,6 +206,7 @@ void send_jobs_to_server(){
     // read from file using strtok
     char *file_content = get_file_content(jobs_file_name);
     if(!file_content) die_errno("Empty jobs file!");
+    printf("FILE CONTENT %s\n\n", file_content);
     cmd = strtok(file_content, dlm);
     if(!cmd) die_errno("NULL cmd");
     identify_cmd();
@@ -208,7 +216,7 @@ void send_jobs_to_server(){
 
 void parse_input(int argc, char **argv){
     if(argc < 2)
-        strcpy(jobs_file_name, "jobs.txt");
+        strcpy(jobs_file_name, def_file_name);
     else
         strcpy(jobs_file_name, argv[1]);
 }
@@ -236,7 +244,7 @@ int main(int argc, char **argv){
     printf("RECEIVED ID (NUMBER IN THE QUEUE): %s\n", rcvd_msg.mtext);
 
 
-
+////////////////////////////////////////
 // -- check if identifying commands works
     send_jobs_to_server();
     
