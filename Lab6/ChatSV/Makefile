@@ -6,10 +6,10 @@ all: Client.o Server.o
 	# make run
 
 Client.o: Client.c
-	gcc -Wall -o Client.o Client.c
+	gcc -Wall -o Client.o Client.c -g
 
 Server.o: Server.c
-	gcc -Wall -o Server.o Server.c
+	gcc -Wall -o Server.o Server.c -g
 
 run: Client.o Server.o
 	./Client.o

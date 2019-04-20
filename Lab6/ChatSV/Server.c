@@ -25,11 +25,16 @@ standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w który
 #include <string.h>
 #include <signal.h> // sigaction(), sigprocmask()
 #include <unistd.h> // sleep()
+#include <errno.h> // errno
 #include "Server.h"
 
+typedef struct client{
+    int clientID;
+    pid_t pid;
+} client;
 // key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
-int clientsID[MAX_CL_COUNT];
-int clientsIDind = 0;
+client clients[MAX_CL_COUNT];
+int clientsInd = 0;
 int flags = IPC_CREAT | 0666;
 /*
 clients
@@ -50,10 +55,11 @@ Należy obsłużyć przerwanie działania serwera lub klienta za pomocą CTRL+C.
 int clientCount;
 struct sigaction act;
 
-struct msg receive_msg(int msqid, int type, int msgflag){
-    msg rcvd_init_msg;
-    if(msgrcv(msqid, &rcvd_init_msg, MAX_MSG_SIZE, type, msgflag) < 0){
-        die_errno("server msgrcv");
+struct msg *receive_msg(int msqid, int type, int msgflag){
+    msg *rcvd_init_msg = malloc(sizeof(msg));
+    if(msgrcv(msqid, rcvd_init_msg, MAX_MSG_SIZE, type, msgflag) < 0){
+        if(errno != ENOMSG) die_errno("server msgrcv");
+        return NULL;
     }
     return rcvd_init_msg;
 }
@@ -65,9 +71,10 @@ void login_client(){
     }
     int cl_msqid;
     // receive message
-    msg rcvd_init_msg = receive_msg(serv_msqid, INIT, 0);
-    printf("RECEIVED: %s\n", rcvd_init_msg.mtext);
-    key_t cl_key = (int) strtol(rcvd_init_msg.mtext, NULL, 10);
+    msg *rcvd_init_msg = receive_msg(serv_msqid, INIT, 0);
+    
+    printf("RECEIVED: %s\n", rcvd_init_msg->mtext);
+    key_t cl_key = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
     //-------------------
     // answer 
     // client using their queue. we know its key because it was sent in the init msg
@@ -75,8 +82,11 @@ void login_client(){
         die_errno("msget, answering client");
     }
     printf("CLIENT ID: %d\n", cl_msqid);
-    clientsID[++clientCount] = cl_msqid;
-
+    clients[++clientCount].clientID = cl_msqid;
+    // getting the PID of the process who SENT their key just before a while
+    rcvd_init_msg = receive_msg(serv_msqid, CL_PID, 0);
+    clients[clientCount].pid = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
+    printf("RECEIVED && CONVERTED PID %d\n", clients[clientCount].pid);
     msg answer;
     answer.mtype = ANS;
     sprintf(answer.mtext, "%d", cl_msqid);
@@ -85,6 +95,7 @@ void login_client(){
     if(msgsnd(cl_msqid, &answer, strlen(answer.mtext)+1, IPC_NOWAIT) < 0){
        die_errno("msgsnd, answering client");
     }
+
     printf("MSG SENT TO CLIENT\n");
 }
 
@@ -102,10 +113,13 @@ void rm_client_queue(int cl_msqid){
 
 void SIGINThandler(int signum){
     printf("SERVER: Received SIGINT. Quiting...");
-    // wait for all clients to send STOP
-
-    for(int i = 0; i < clientCount; i++)
-        receive_msg(clientsID[i], END, 0);
+    // sending to all clients SIGINT && waiting for all clients to send STOP
+    for(int i = 0; i < clientCount; i++){
+        kill(clients[i].pid, SIGINT);
+        sleep(1);
+        if(msgrcv(clients[i].clientID, NULL, MAX_MSG_SIZE, STOP, IPC_NOWAIT) < 0)
+            die_errno("didn't receive STOP message from client");
+    }
     exit(0);
 }
 
@@ -139,30 +153,47 @@ int main(void){
     // ------ ok
     login_client(); // may need changes
     // --- changing it
-    msg rcvd_msg;
-    while(1){
-        int cur_clID = clientsID[clientsIDind];
-        int flag = 0; // IPC_NOWAIT; // OK????
-        for(int i = 1; i <= MSG_TYPES_COUNT; i++){
-        // doesn't work with 0!!!
+    msg *rcvd_msg;
+    int clientID;
+    while(1){ // serving clients according to clientsInd
+        printf("\nFirst things first\n");
+        for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
+            for(int j = 0; j < MAX_CL_COUNT; j++)
+                while((rcvd_msg = receive_msg(clients[j].clientID, i, IPC_NOWAIT)) != NULL){
+                    printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+                    /*
 
-        //PROBLEM!!!!!!!!!! server msgrcv: Invalid argument
 
-            rcvd_msg = receive_msg(cur_clID, i, flag); // type = 0 means ANY TYPE
-            printf("RECEIVED MESSAGE: %s\n", rcvd_msg.mtext);
+                    doddodododo sth
+
+
+                    */
+                }
+    
+        // then the remaining requests are served
+        printf("\nThen the rest\n");
+        // serving client whose id == clients[clientsInd].clientID
+            // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
+            // It would have been received if it had come.
+        clientID = clients[clientsInd].clientID;
+        while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
+            printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+                /*
+
+
+                doddodododo sth
+
+
+                */
+
         }
-    // CZY JA MAM SPRAWDZIĆ, CZY KAŻDY KOLEJNY Z KLIENTÓW MI NIE WYSŁAŁ TEJ WIADOMOŚCI??
-
-
-
-
-
+        clientsInd++; // serving next client;
     }
     return 0;
 }
 
 /*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
- PLACES WITH -1 THERE? ?? ? IS IT OK???) ID probably ok, but I need to rmv a QUEUE!
+ PLACES WITH -1 THERE? ?? ? IS IT OK???)
     
     // clientID
     int clientInd = -1;
