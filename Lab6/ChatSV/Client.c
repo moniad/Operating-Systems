@@ -14,7 +14,7 @@
 #define MAX_FILE_SIZE 1000
 
 /* todo:
-- receiving END signal
+- receiving messages from friends and so on
 
 jak daję flagę IPC_NOWAIT, to muszę sprawdzać, czy msg nie jest NULL-em!
 
@@ -260,7 +260,7 @@ int main(int argc, char **argv){
 
 
 ////////////////////////////////////////
-// -- works
+// -- ECHO works on both sides :)
     send_jobs_to_server();
     
     return 0;

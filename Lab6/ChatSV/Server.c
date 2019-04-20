@@ -9,12 +9,9 @@ Wysyłane zlecenia klientow do serwera mają zawierać
 W odpowiedzi rodzajem komunikatu ma być 
 1) informacja identyfikująca czekającego na nią klienta.
 
- Po otrzymaniu identyfikatora, 
-klient rozpoczyna wysyłanie zleceń do serwera (w pętli), zlecenia są czytane ze 
-standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w którym
- w każdej linii znajduje się jeden komunikat (napisanie po stronie klienta READ 
- plik zamiast typu komunikatu). Przygotuj pliki z dużą liczbą zleceń, aby można 
- było przetestować działanie zleceń i priorytetów.
+komunikaty z:
+- stdin
+- albo pliku
 */
 
 #include <stdio.h> // perror()
@@ -26,7 +23,10 @@ standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w który
 #include <signal.h> // sigaction(), sigprocmask()
 #include <unistd.h> // sleep()
 #include <errno.h> // errno
+#include <time.h>
 #include "Server.h"
+
+#define DATE_LENGTH 30
 
 typedef struct client{
     int clientID;
@@ -41,16 +41,12 @@ clients
 change login_client()
 SIGINThandler() - to do - receive stop from all clients
 
-Zlecenia powinny być obsługiwane zgodnie z priorytetami, 
-najwyższy priorytet ma STOP, potem LIST oraz FRIENDS i reszta. 
-
 Serwer może wysłać do klientów komunikaty:
-inicjujący pracę klienta (kolejka główna serwera)
-wysyłający odpowiedzi do klientów (kolejki klientów)
-informujący klientów o zakończeniu pracy serwera - po wysłaniu takiego sygnału i odebraniu wiadomości STOP od wszystkich klientów serwer usuwa swoją kolejkę i kończy pracę. (kolejki klientów)
-Należy obsłużyć przerwanie działania serwera lub klienta za pomocą CTRL+C. Po stronie klienta obsługa tego sygnału jest równoważna z wysłaniem komunikatu STOP.
+- inicjujący pracę klienta (kolejka główna serwera)
+- wysyłający odpowiedzi do klientów (kolejki klientów)
+- informujący klientów o zakończeniu pracy serwera - po wysłaniu takiego sygnału i odebraniu wiadomości STOP od wszystkich klientów serwer usuwa swoją kolejkę i kończy pracę. (kolejki klientów)
 
-
+NOT TESTED FOR MULTIPLE CLIENTS!!!!
 */
 int clientCount;
 struct sigaction act;
@@ -135,6 +131,31 @@ void set_signal_handling(){
     }
 }
 
+void send_msg(int cl_msqid, int type, char *message, char *errno_msg){
+    msg mesg;
+    mesg.mtype = type;
+    strcpy(mesg.mtext, message);
+
+    printf("SENDING: %s\n", mesg.mtext);
+
+    if(msgsnd(cl_msqid, &mesg, strlen(mesg.mtext)+1, IPC_NOWAIT) < 0)
+        die_errno(errno_msg);
+}
+
+void echo(int cl_msqid, char *string){
+    if(!string) die_errno("empty string in echo");
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char * datetime = malloc(DATE_LENGTH * sizeof(char));
+    if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
+        die_errno("strftime");
+    char *res_string = malloc(strlen(string) + DATE_LENGTH);
+    strcpy(res_string, string);
+    strcat(res_string, " ");
+    strcat(res_string, datetime);
+    send_msg(cl_msqid, ECHO, res_string, "msgsnd, ECHO");
+}
+
 int main(void){
    
    set_signal_handling();
@@ -155,42 +176,46 @@ int main(void){
     // --- changing it
     msg *rcvd_msg;
     int clientID;
-    while(1){ // serving clients according to clientsInd
-        printf("\nFirst things first\n");
-        for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
-            for(int j = 0; j < MAX_CL_COUNT; j++)
-                while((rcvd_msg = receive_msg(clients[j].clientID, i, IPC_NOWAIT)) != NULL){
-                    printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
-                    /*
+    ///////////////////////////////////////////////////////////////
+    // while(1){ // serving clients according to clientsInd
+    //     printf("\nFirst things first\n");
+    //     for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
+    //         for(int j = 0; j < MAX_CL_COUNT; j++)
+    //             while((rcvd_msg = receive_msg(clients[j].clientID, i, IPC_NOWAIT)) != NULL){
+    //                 printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+    //                 /*
 
 
-                    doddodododo sth
+    //                 doddodododo sth
 
 
-                    */
-                }
+    //                 */
+    //             }
     
-        // then the remaining requests are served
-        printf("\nThen the rest\n");
-        // serving client whose id == clients[clientsInd].clientID
-            // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
-            // It would have been received if it had come.
-        clientID = clients[clientsInd].clientID;
-        while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
-            printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
-                /*
+    //     // then the remaining requests are served
+    //     printf("\nThen the rest\n");
+    //     // serving client whose id == clients[clientsInd].clientID
+    //         // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
+    //         // It would have been received if it had come.
+    //     clientID = clients[clientsInd].clientID;
+    //     while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
+    //         printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+    //             /*
 
 
-                doddodododo sth
+    //             doddodododo sth
 
 
-                */
+    //             */
 
-        }
-        clientsInd++; // serving next client;
-    }
+    //     }
+    //     clientsInd++; // serving next client;
+    // }
     return 0;
 }
+
+// works:)
+// echo(clients[0].clientID, "heeeeej");
 
 /*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
  PLACES WITH -1 THERE? ?? ? IS IT OK???)

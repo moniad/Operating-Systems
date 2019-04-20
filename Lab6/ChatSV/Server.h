@@ -16,9 +16,10 @@ int command = IPC_RMID; // for atexit()
 int serv_msqid; // id of server queue for clients to send their messages to server
 
 typedef enum msgtype {
+    // messages from client
     STOP = 1, LIST = 2, FRIENDS = 3, ADD = 4, DEL = 5,
     TO_ALL = 6, TO_FRIENDS = 7, TO_ONE = 8, ECHO = 9, CL_PID = 12,
-    // server messages
+    // messages from server
     INIT = 10, ANS = 11 //, END = 12,
 } msgtype;
 
