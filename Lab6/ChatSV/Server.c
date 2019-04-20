@@ -156,11 +156,23 @@ void echo(int cl_msqid, char *string){
     send_msg(cl_msqid, ECHO, res_string, "msgsnd, ECHO");
 }
 
-int main(void){
-   
-   set_signal_handling();
+void list(){
+    printf("LISTING active clients:\n");
+    for(int i = 0; i < MAX_CL_COUNT; i++)
+        if(clients[i].clientID != -1)
+            printf("%d ", clients[i].clientID);
+}
 
+void init_array_and_vars(){
     clientCount = -1;
+    for(int i = 0; i < MAX_CL_COUNT; i++)
+        clients[i].clientID = clients[i].pid = -1;
+}
+
+int main(void){
+    init_array_and_vars();
+    set_signal_handling();
+
     // give the process read & write permission
     if((serv_msqid = msgget(SERV_KEY, flags)) < 0){
         die_errno("msget");
@@ -214,8 +226,9 @@ int main(void){
     return 0;
 }
 
-// works:)
-// echo(clients[0].clientID, "heeeeej");
+// works :)
+// - with all: echo(clients[0].clientID, "heeeeej");
+// - with one client (for sure): list();
 
 /*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
  PLACES WITH -1 THERE? ?? ? IS IT OK???)
