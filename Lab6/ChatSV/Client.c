@@ -15,10 +15,10 @@
 
 /* todo:
 - receiving messages from friends and so on
-
+- SERVER STUFF eg. list() IS NOT TESTED FOR MULTIPLE CLIENTS!!!!
+- some server stuff
 jak daję flagę IPC_NOWAIT, to muszę sprawdzać, czy msg nie jest NULL-em!
 
-some server stuff
 */
 
 // at the beginning I send client's PID in separate message

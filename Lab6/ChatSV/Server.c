@@ -39,14 +39,13 @@ int flags = IPC_CREAT | 0666;
 /*
 clients
 change login_client()
-SIGINThandler() - to do - receive stop from all clients
+SIGINThandler() - to check - receive stop from all clients
 
 Serwer może wysłać do klientów komunikaty:
 - inicjujący pracę klienta (kolejka główna serwera)
 - wysyłający odpowiedzi do klientów (kolejki klientów)
 - informujący klientów o zakończeniu pracy serwera - po wysłaniu takiego sygnału i odebraniu wiadomości STOP od wszystkich klientów serwer usuwa swoją kolejkę i kończy pracę. (kolejki klientów)
 
-NOT TESTED FOR MULTIPLE CLIENTS!!!!
 */
 int clientCount;
 struct sigaction act;
