@@ -7,7 +7,10 @@
 #define SERV_KEY 112
 
 typedef enum msgtype {
-    INIT = 1, ANS = 999, STOP = 10
+    STOP = 1, LIST = 2, FRIENDS = 3, ADD = 4, DEL = 5,
+    TO_ALL = 6, TO_FRIENDS = 7, TO_ONE = 8, ECHO = 9,
+    // server messages
+    INIT = 10, ANS = 11, END = 12
 } msgtype;
 
 #endif

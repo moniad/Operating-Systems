@@ -7,14 +7,18 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h> // sleep()
+#include <ctype.h> // isdigit()
 #include "Server.h"
 
+#define MAX_FILE_SIZE 1000
 
-/*
-how to send STOP to Server??  send_msg(serv_msqid, STOP, key_string); <- is it ok?
-do send jobs to server
+/* todo:
+- receiving END signal
 
+some server stuff
 */
+
+
 
 key_t key;
 char key_string[MAX_MSG_SIZE];
@@ -23,6 +27,9 @@ int msqid; // queue for client to send their messages to server
 int serv_msqid;
 int command = IPC_RMID;
 struct sigaction act; // handle SIGINT
+char jobs_file_name[MAX_FILE_SIZE];
+char *cmd;
+char dlm[] = " \n\t";
 
 typedef struct msg{
     long mtype;
@@ -34,6 +41,9 @@ typedef struct msgbuf{
     char *mtext;
 } msgbuf;
 
+void friends();
+void identify_cmd();
+
 void die_errno(char *msg){
     perror(msg);
     exit(1);
@@ -41,21 +51,23 @@ void die_errno(char *msg){
 
 struct msg receive_msg(int serv_msqid, int type) { //, int key){
     msg rcvd_init_msg;
-    if(msgrcv(serv_msqid, &rcvd_init_msg, MAX_MSG_SIZE, type, 0) < 0){
+    int qid = type == INIT ? serv_msqid : msqid;
+    if(msgrcv(qid, &rcvd_init_msg, MAX_MSG_SIZE, type, 0) < 0){
         die_errno("client msgrcv");
     }
     return rcvd_init_msg;
 }
 
-void send_msg(int serv_msqid, int type, char *message){
+void send_msg(int type, char *message){
     msg init_msg;
     init_msg.mtype = type;
     strcpy(init_msg.mtext, message);
     
     printf("SENDING: %s\n", init_msg.mtext);
 
-    if(msgsnd(serv_msqid, &init_msg, strlen(init_msg.mtext)+1, IPC_NOWAIT) < 0){
-       die_errno("msgsnd");
+    int qid = type == INIT ? serv_msqid : msqid;
+    if(msgsnd(qid, &init_msg, strlen(init_msg.mtext)+1, IPC_NOWAIT) < 0){
+        die_errno("msgsnd");
     }
 }
 
@@ -65,10 +77,9 @@ void rm_queue(void){
     }
 }
 
-
 void SIGINThandler(int signum){
     printf("CLIENT: key: %d Received SIGINT. Sending STOP to SERVER...", key);
-    send_msg(serv_msqid, STOP, key_string);
+    send_msg(STOP, key_string);
     printf("SENT. Now QUITTING...\n");
     exit(0);
 }
@@ -89,37 +100,145 @@ void get_key_string(){
     sprintf(key_string, "%d", key);
 }
 
-int main(void){
-    // getenv() - searches the env list in order to find the env variable name 
-    if((key = ftok(getenv("HOME"), PROJ_ID) % 1000) < 0){
-        die_errno("ftok");
+size_t get_file_size(char *file_name){
+    FILE *file = fopen(file_name, "r");
+    if(!file) die_errno("Couldn't open file!\n");
+    //SEEK_END moves file pointer position to the end of file
+    fseek(file, 0, SEEK_END);
+    size_t size = (size_t) ftell(file); //returns the position of file ptr
+    fclose(file);
+    return size;
+}
+
+char *get_file_content(char *path_to_file){
+    size_t file_size = get_file_size(path_to_file);
+    char *file_content = calloc(file_size+1, sizeof(char));
+    // reading file_content
+    FILE *file = fopen(path_to_file, "r");
+
+    if(fread(file_content, sizeof(char), file_size, file) != file_size)
+        die_errno("Sth went wrong during reading data from file");
+    fclose(file);
+    return file_content;
+}
+
+void stop(){
+    printf("STOP\n");
+    send_msg(STOP, key_string);
+    exit(0);
+}
+
+void list(){ send_msg(LIST, key_string); }
+
+char *concat_message(char *message){
+    strcpy(message, cmd);
+    cmd = strtok(NULL, dlm);
+    while(cmd && isdigit(cmd[0])){
+        strcat(message, cmd);
+        strcat(message, " ");
+        cmd = strtok(NULL, dlm);
     }
+    return message;
+}
+void echo(){
+    char *message = strtok(NULL, dlm);
+    send_msg(ECHO, message);
+    msg rcvd_msg = receive_msg(msqid, ECHO);
+    printf("CLIENT ECHO: %s\n", rcvd_msg.mtext);
+}
+
+void add(int type){
+    cmd = strtok(NULL, dlm);
+    if(!cmd || !isdigit(cmd[0])){ // no IDs given ==> not adding anything || sending empty msg
+        if(type == FRIENDS) send_msg(FRIENDS, "");
+        else if(type == ADD) printf("No client IDs to add\n");
+        else printf("No clients to delete!\n");
+        if(cmd) identify_cmd(); // go on, cause we read it, but didn't use it!
+        return;
+    }
+    char *message = malloc(MAX_MSG_SIZE * sizeof(char));
+    concat_message(message);
+    send_msg(type, message);
+    // is not digit any more
+    if(cmd) identify_cmd(); // go on, cause we read it, but didn't use it!
+    // free(message); <- is it OK????
+}
+
+void to_all_or_friends(int type){
+    cmd = strtok(NULL, dlm);
+    if(!cmd) die_errno("incorrect input. to_all_or_friends");
+    send_msg(type, cmd);
+}
+
+void to_one(){
+    cmd = strtok(NULL, dlm);
+    if(!cmd) die_errno("incorrect input. to_one");
+    char *message = malloc(MAX_MSG_SIZE * sizeof(char));
+    strcpy(message, cmd);
+    strcat(message, " ");
+    cmd = strtok(NULL, dlm);
+    if(!cmd) die_errno("incorrect input. to_one");
+    strcat(message, cmd);
+    send_msg(TO_ONE, message);
+}
+
+void identify_cmd(){
+    if(strcmp(cmd, "STOP") == 0) stop();
+    else if(strcmp(cmd, "LIST") == 0) list();
+    else if(strcmp(cmd, "FRIENDS") == 0) add(FRIENDS);
+    else if(strcmp(cmd, "ECHO") == 0) echo();
+    else if(strcmp(cmd, "ADD") == 0) add(ADD);
+    else if(strcmp(cmd, "DEL") == 0) add(DEL);
+    else if(strcmp(cmd, "TO_ALL") == 0) to_all_or_friends(TO_ALL);
+    else if(strcmp(cmd, "TO_FRIENDS") == 0) to_all_or_friends(TO_FRIENDS);
+    else if(strcmp(cmd, "TO_ONE") == 0) to_one();
+    else printf("Command not recognized!\n");
+}
+
+void send_jobs_to_server(){
+    // read from file using strtok
+    char *file_content = get_file_content(jobs_file_name);
+    if(!file_content) die_errno("Empty jobs file!");
+    cmd = strtok(file_content, dlm);
+    if(!cmd) die_errno("NULL cmd");
+    identify_cmd();
+    while((cmd = strtok(NULL, dlm)) != NULL)
+        identify_cmd();
+}
+
+void parse_input(int argc, char **argv){
+    if(argc < 2)
+        strcpy(jobs_file_name, "jobs.txt");
+    else
+        strcpy(jobs_file_name, argv[1]);
+}
+
+int main(int argc, char **argv){
+    parse_input(argc, argv);
+
+    // getenv() - searches the env list in order to find the env variable name 
+    if((key = ftok(getenv("HOME"), PROJ_ID) % 1000) < 0) die_errno("ftok");
     printf("key: %d\n", key);
     // get server msqid:
-    if((serv_msqid = msgget(SERV_KEY, 0666)) < 0){
-        die_errno("msget");
-    }
+    if((serv_msqid = msgget(SERV_KEY, 0666)) < 0) die_errno("msget");
     printf("SERVER ID: %d\n", serv_msqid);
     // get your msqid
-    if((msqid = msgget(key, flags)) < 0){
-        die_errno("msgget");
-    }
-    if(atexit(rm_queue) < 0){
-        die_errno("atexit");
-    }
+    if((msqid = msgget(key, flags)) < 0) die_errno("msgget");
+    if(atexit(rm_queue) < 0) die_errno("atexit");
     set_signal_handling();
     // now send to server msgqueue the key of the newly created queue
     get_key_string();
-    send_msg(serv_msqid, INIT, key_string);
+    send_msg(INIT, key_string);
 
     sleep(1);
     // receive message with ID
     msg rcvd_msg = receive_msg(msqid, ANS); 
     printf("RECEIVED ID (NUMBER IN THE QUEUE): %s\n", rcvd_msg.mtext);
 
-    // send jobs to server
-    // ...
 
 
+// -- check if identifying commands works
+    send_jobs_to_server();
+    
     return 0;
 }

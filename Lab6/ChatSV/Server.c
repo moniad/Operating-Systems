@@ -24,10 +24,11 @@ standardowego wyjścia w postaci typ_komunikatu albo z pliku tekstowego w który
 #include <stdlib.h> // system()
 #include <string.h>
 #include <signal.h> // sigaction(), sigprocmask()
+#include <unistd.h> // sleep()
 #include "Server.h"
 
-key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
-
+// key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
+int clientsID[MAX_CL_COUNT];
 /*
 clients
 change login_client()
@@ -75,21 +76,19 @@ void login_client(){
     }
     int cl_msqid;
     // receive message
-    // msg rcvd_init_msg = receive_msg(serv_msqid, INIT);
-    msg rcvd_init_msg;
-    if(msgrcv(serv_msqid, &rcvd_init_msg, MAX_MSG_SIZE, 1, 0) < 0){
-        die_errno("server msgrcv");
-    }
+    msg rcvd_init_msg = receive_msg(serv_msqid, INIT);
     printf("RECEIVED: %s\n", rcvd_init_msg.mtext);
-    clients[++clientCount] = (int) strtol(rcvd_init_msg.mtext, NULL, 10);
-
+    key_t cl_key = (int) strtol(rcvd_init_msg.mtext, NULL, 10);
+    // clients[++/nothingclientCount] = (int) strtol(rcvd_init_msg.mtext, NULL, 10);
+   
     //-------------------
     // answer 
     // client using their queue. we know its key because it was sent in the init msg
-    if((cl_msqid = msgget(clients[clientCount], flags)) < 0){
+    if((cl_msqid = msgget(cl_key, flags)) < 0){
         die_errno("msget, answering client");
     }
     printf("CLIENT ID: %d\n", cl_msqid);
+    clientsID[++clientCount] = cl_msqid;
 
     msg answer;
     answer.mtype = ANS;
@@ -107,24 +106,23 @@ void rm_queue(void){
     }
 }
 
-void stop_client(key_t cl_key){
-    // do sth here
-
-
-
+void rm_client_queue(int cl_msqid){
+    if(msgctl(cl_msqid, command, NULL) < 0){
+        die_errno("ipcrm client's queue");
+    }
 }
 
 void SIGINThandler(int signum){
     printf("SERVER: Received SIGINT. Quiting...");
-    // wait for all clients to send SIGINT
+    // wait for all clients to send STOP
 
-    // for(int i = 0; i < clientCount; i++)
-    //     stop_client(clients[i]);
+    for(int i = 0; i < clientCount; i++)
+        receive_msg(clientsID[i], END);
     exit(0);
 }
 
 void set_signal_handling(){
-     act.sa_handler = SIGINThandler;
+    act.sa_handler = SIGINThandler;
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     if(sigaction(SIGINT, &act, NULL) < 0){
@@ -148,6 +146,23 @@ int main(void){
         die_errno("atexit");
     }
     login_client(); // may need changes
-
+    sleep(4);
     return 0;
 }
+
+/*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
+ PLACES WITH -1 THERE? ?? ? IS IT OK???) ID probably ok, but I need to rmv a QUEUE!
+    
+    // clientID
+    int clientInd = -1;
+    for(int i = 0; i < clientCount; i++)
+        if(clientID == clientsID[i]){
+            clientInd = i;
+            break;
+        }
+    receive_msg(clientsID[clientInd], STOP);
+    // remove client's ID from the table
+    clientsID[clientInd] = -1;
+    rm_client_queue(clientID);
+
+*/ // getting stop from client
