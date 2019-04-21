@@ -53,6 +53,15 @@ Serwer może wysłać do klientów komunikaty:
 int clientCount;
 struct sigaction act;
 
+char *get_date_time(){
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    char * datetime = malloc(DATE_LENGTH * sizeof(char));
+    if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
+        die_errno("strftime");
+    return datetime;
+}
+
 struct msg *receive_msg(int msqid, int type, int msgflag){
     msg *rcvd_init_msg = malloc(sizeof(msg));
     if(msgrcv(msqid, rcvd_init_msg, MAX_MSG_SIZE, type, msgflag) < 0){
@@ -148,15 +157,10 @@ void send_msg(int cl_msqid, int type, char *message, char *errno_msg){
 
 void echo(int cl_msqid, char *string){
     if(!string) die_errno("empty string in echo");
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    char * datetime = malloc(DATE_LENGTH * sizeof(char));
-    if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
-        die_errno("strftime");
     char *res_string = malloc(strlen(string) + DATE_LENGTH);
     strcpy(res_string, string);
     strcat(res_string, " ");
-    strcat(res_string, datetime);
+    strcat(res_string, get_date_time());
     send_msg(cl_msqid, ECHO, res_string, "msgsnd, ECHO");
 }
 
@@ -220,7 +224,7 @@ void set_new_friends(int type, char *list){ // there won't be more clients conne
     while((oneFriend = strtok_r(copy_of_list, " ", &copy_of_list)) != NULL){
         // printf("ADDING (OR NOT) ONE FRIEND: %s\n", oneFriend);
         if(!is_client_connected(oneFriend)){
-            printf("Client not connected: %s\n", copy_of_list);
+            printf("Client not connected: %s\n", oneFriend);
         }
         else if(is_client_a_friend(oneFriend)){
             printf("Client %s is already among friends\n", oneFriend);
@@ -284,6 +288,62 @@ void del(char *friends_to_rmv){ // creating a new list. appending clients whose 
     strcpy(friendsIDs, newFriendsList);
 }
 
+void to_all_or_friends(int type, int cl_msqid, char *string){
+    if(!string) die_errno("empty string in to_all()");
+    
+    char *res_string = malloc(MAX_MSG_SIZE);
+    strcpy(res_string, "Client with ID = ");
+
+    char *msqid_str = malloc(MAX_ID_LENGTH);
+    sprintf(msqid_str, "%d", cl_msqid);
+
+    strcat(res_string, msqid_str);
+    strcat(res_string, " wrote \"");
+    strcat(res_string, string);
+    strcat(res_string, "\" on ");
+    strcat(res_string, get_date_time());
+    printf("FINAL MESSAGE: %s\n", res_string);
+
+    if(type == TO_ALL){
+        for(int i = 0; i < MAX_CL_COUNT; i++)
+            if(clients[i].clientID != -1)
+                send_msg(clients[i].clientID, TO_ALL, res_string, "msgsnd, to_all()");
+    }
+    else if(type == TO_FRIENDS){
+        char *copy_of_friends = malloc(MAX_CL_COUNT * (MAX_ID_LENGTH + 1) * sizeof(char));
+        strcpy(copy_of_friends, friendsIDs);
+        char *friend;
+        while((friend = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL){
+            // printf("friend ID: %s\n", friend);
+            send_msg((int) strtol(friend, NULL, 10), TO_FRIENDS, res_string, "msgsnd, to_friends()");
+        }
+    }
+    else die_errno("Wrong type of msg in to_all_or_friends!");
+}
+
+void to_one(int cl_from, int cl_to, char *string){ // supposing cl_to is on the list
+    // as given in the instructions
+    if(!string) die_errno("empty string in to_one()");
+    
+    char *res_string = malloc(MAX_MSG_SIZE);
+    strcpy(res_string, "Client with ID = ");
+
+    char *msqid_str = malloc(MAX_ID_LENGTH);
+    sprintf(msqid_str, "%d", cl_from);
+
+    strcat(res_string, msqid_str);
+    strcat(res_string, " wrote to client with ID = ");
+    sprintf(msqid_str, "%d", cl_to);
+    strcat(res_string, msqid_str);
+    strcat(res_string, ": \"");
+    strcat(res_string, string);
+    strcat(res_string, "\" on ");
+    strcat(res_string, get_date_time());
+    printf("FINAL MESSAGE: %s\n", res_string);
+
+    send_msg(cl_to, TO_ONE, res_string, "msgsnd, to_one()");
+}
+
 void init_array_and_vars(){
     friendsIDs = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char)); // counting the spaces between IDs
     clientCount = -1;
@@ -312,7 +372,9 @@ int main(void){
     msg *rcvd_msg;
     int clientID;
     sleep(2);
-
+    add("222 234");
+    // to_all_or_friends(TO_FRIENDS, 100, "ALA ma KOTA");
+    
     ///////////////////////////////////////////////////////////////
     // while(1){ // serving clients according to clientsInd
     //     printf("\nFirst things first\n");
@@ -370,6 +432,8 @@ int main(void){
 // - friends("234 123 456 777"); <- but they have to be connected
 // - add("222 234");
 // - del("123");
+// - to_all_or_friends(TO_FRIENDS, 100, "ALA ma KOTA");
+// to_one(100, 200, "ALA NIE ma PSAA haha!");
 
 
 /*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
