@@ -185,27 +185,60 @@ int is_client_connected(char *clientID){
     }
     return 0;
 }
-void set_new_friends(char *list){ // there won't be more clients connected 
+
+
+//
+// TO DO
+// THIS FUNCTION DOESN'T WORK!!!!!!!! becasue of it strtok doesn't work!!!!!!!
+int is_client_a_friend(char *clientID){
+     // counted this way because strtok destroys the string passed as an argument
+    char *copy_of_friends = malloc(strlen(friendsIDs));
+    strcpy(copy_of_friends, friendsIDs);
+    char *friendID = strtok(copy_of_friends, " ");
+    while(friendID){
+        if(strcmp(friendID, clientID) == 0)
+            return 1;
+        friendID = strtok(NULL, " ");
+    }
+    // free(copy_of_friends);
+    return 0;
+}
+
+
+void set_new_friends(int type, char *list){ // there won't be more clients connected 
     // than max clients because either they won't be connected, or they will already
     // be connected
-    // cleaning the old list:
-    strcpy(friendsIDs, "");
-    int new_friends_count = 0;
+    int new_friends_count;
+    if(type == FRIENDS){
+        // cleaning the old list:
+        strcpy(friendsIDs, "");
+        new_friends_count = 0;
+    }
+    else if(type == ADD)
+        new_friends_count = friends_count;
+    else die_errno("Incorrect type passed to set_new_friends");
     // counted this way because strtok destroys the string passed as an argument
-    char *copy_of_list = malloc((strlen(list)+1) * sizeof(char));
-    strcpy(copy_of_list, list);
-    char *oneFriend = strtok(copy_of_list, " ");
+    // char *copy_of_list = malloc((strlen(list)+1) * sizeof(char));
+    // strcpy(copy_of_list, list);
+    printf("NEW FRIENDS LIST: %s\n", list); //copy_of_list);
+    char *oneFriend = strtok(list, " "); //(copy_of_list, " ");
     while(oneFriend){
+        printf("ADDING (OR NOT) ONE FRIEND: %s TO THE FOLLOWING LIST: %s\n", oneFriend, friendsIDs);
         /* TURNED OFF JUST FOR A WHILE!!!!!!!!!!!!
         if(!is_client_connected(oneFriend)){
             printf("Client not connected: %s\n", copy_of_list);
         }
-        else{*/
+        
+        else*/ if(is_client_a_friend(oneFriend)){
+            printf("Client %s is already among friends\n", oneFriend);
+        }
+        else{
             new_friends_count++;
             strcat(friendsIDs, " ");
             strcat(friendsIDs, oneFriend);
-       /* } */
+        }
         oneFriend = strtok(NULL, " ");
+        printf("AFTER ALL One friend: %s\n", oneFriend);
     }
     friends_count = new_friends_count;
 }
@@ -214,17 +247,10 @@ void set_new_friends(char *list){ // there won't be more clients connected
 void friends(char *list_of_friendsIDs){ // empty message is sent if FRIENDS
     // (without IDs) is sent
     // printf("\n\nFRIENDS. friends count before: %d\n", friends_count);
-    // printf("FRIENDS IDS before: %s vs ", friendsIDs);
-    set_new_friends(list_of_friendsIDs);
+    printf("FRIENDS IDS before: %s vs ", friendsIDs);
+    set_new_friends(FRIENDS, list_of_friendsIDs);
     // printf("VS after: %d\n", friends_count);
-    // printf("after: %s\n", friendsIDs);
-}
-
-void add(char *list_of_friends){
-    // printf("ADD: before: %s vs ", friendsIDs);
-    strcat(friendsIDs, " ");
-    strcat(friendsIDs, list_of_friends);
-    // printf("after: %s\n", friendsIDs);
+    printf("after: %s\n", friendsIDs);
 }
 
 
@@ -236,23 +262,36 @@ void add(char *list_of_friends){
 ///
 //
 //
-
-void del(char *friends_to_rmv){
-    char *newFriendsList = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
-    char *curFriend;
-    char *friendToDel = strtok(friends_to_rmv, " ");
-    while(friendToDel){
-        curFriend = strtok(friendsIDs, " ");
-        while(curFriend){
-            if(curFriend != friendToDel){
-
-            }
-        }
-        if(!curFriend){
-
-        }
-    }
+void add(char *list_of_friends){ // includes checking if given friend is only once
+    // on a list
+    printf("ADD: before: %s vs ", friendsIDs);
+    set_new_friends(ADD, list_of_friends);
+    // strcat(friendsIDs, " ");
+    // strcat(friendsIDs, list_of_friends);
+    printf("after: %s\n", friendsIDs);
 }
+
+
+
+// void del(char *friends_to_rmv){
+//     char *newFriendsList = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
+//     int new_friends_count = 0;
+//     char *curFriend;
+//     char *friendToDel = strtok(friends_to_rmv, " ");
+//     while(friendToDel){
+//         curFriend = strtok(friendsIDs, " ");
+//         while(curFriend){
+//             if(curFriend != friendToDel){
+//                 if(!new_friends_count)
+//                     strcpy(newFriendsList, curFriend);
+//             }
+//         }
+//         if(!curFriend){
+
+//         }
+//         friendToDel = strtok(NULL, " ");
+//     }
+// }
 
 
 void init_array_and_vars(){
@@ -284,8 +323,8 @@ int main(void){
     int clientID;
     sleep(2);
     friends("234 123 456 777");
-    add("222");
-    del("123");
+    // add("222");
+    // del("123");
     ///////////////////////////////////////////////////////////////
     // while(1){ // serving clients according to clientsInd
     //     printf("\nFirst things first\n");
