@@ -191,12 +191,9 @@ int is_client_a_friend(char *clientID){
     char *copy_of_friends = malloc(MAX_CL_COUNT * (MAX_ID_LENGTH+1) * sizeof(char));
     strcpy(copy_of_friends, friendsIDs);
     char *friendID;
-    while((friendID = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL){
-        // printf("friendID: %s\n", friendID);
-        if(strcmp(friendID, clientID) == 0){
+    while((friendID = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL)
+        if(strcmp(friendID, clientID) == 0)
             return 1;
-        }
-    }
     // free(copy_of_friends); <- FORBIDDEN!!!
     return 0;
 }
@@ -221,12 +218,10 @@ void set_new_friends(int type, char *list){ // there won't be more clients conne
 
     while((oneFriend = strtok_r(copy_of_list, " ", &copy_of_list)) != NULL){
         // printf("ADDING (OR NOT) ONE FRIEND: %s\n", oneFriend);
-        /* TURNED OFF JUST FOR A WHILE!!!!!!!!!!!!
         if(!is_client_connected(oneFriend)){
             printf("Client not connected: %s\n", copy_of_list);
         }
-        
-        else */if(is_client_a_friend(oneFriend)){
+        else if(is_client_a_friend(oneFriend)){
             printf("Client %s is already among friends\n", oneFriend);
         }
         else{
