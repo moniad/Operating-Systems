@@ -109,6 +109,7 @@ void rm_client_queue(int cl_msqid){
     }
 }
 
+// make it work!!!!!
 void SIGINThandler(int signum){
     printf("SERVER: Received SIGINT. Quiting...");
     // sending to all clients SIGINT && waiting for all clients to send STOP
@@ -168,7 +169,7 @@ void list(){
 
 void stop(int cl_msqid){
     int i; // client index in the clients array - needed to put -1 there
-    // what signals that client is no longer connected to the server
+    // it signals that client is no longer connected to the server
     for(i = 0; i < MAX_CL_COUNT; i++)
         if(clients[i].clientID == cl_msqid) break;
     if(clients[i].clientID != cl_msqid)
@@ -247,30 +248,41 @@ void friends(char *list_of_friends){
     printf("after: %s\n", friendsIDs);
 }
 
-//
-// TO DO
-//
+int get_no_of_friends(char *friends_IDs_list){
+    int friends = 0;
+    char *copy_of_fr_IDs_list = calloc(strlen(friends_IDs_list)+1, sizeof(char));
+    strcpy(copy_of_fr_IDs_list, friends_IDs_list);
+    char *friend;
+    while((friend = strtok_r(copy_of_fr_IDs_list, " ", &copy_of_fr_IDs_list)) != NULL)
+        friends++;
+    return friends;
+}
 
-// void del(char *friends_to_rmv){
-//     char *newFriendsList = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
-//     int new_friends_count = 0;
-//     char *curFriend;
-//     char *friendToDel = strtok(friends_to_rmv, " ");
-//     while(friendToDel){
-//         curFriend = strtok(friendsIDs, " ");
-//         while(curFriend){
-//             if(curFriend != friendToDel){
-//                 if(!new_friends_count)
-//                     strcpy(newFriendsList, curFriend);
-//             }
-//         }
-//         if(!curFriend){
-
-//         }
-//         friendToDel = strtok(NULL, " ");
-//     }
-// }
-
+void del(char *friends_to_rmv){ // creating a new list. appending clients whose IDs
+    // are not on the friends_to_rmv list
+    char *newFriendsList = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
+    char *copy_of_friends = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
+    strcpy(copy_of_friends, friendsIDs);
+    char *curFriend;
+    char *friendToDel;
+    int rmvd;
+    while((friendToDel = strtok_r(friends_to_rmv, " ", &friends_to_rmv)) != NULL){
+        rmvd = 0;
+        while((curFriend = strtok_r(copy_of_friends, " ", &copy_of_friends)) !=NULL){
+            if(strcmp(curFriend, friendToDel) != 0){
+                strcat(newFriendsList, " ");
+                strcat(newFriendsList, curFriend);
+            }
+            else rmvd = 1;
+        }
+        if(!rmvd) printf("Client with ID = %s was not on the list of friends!\n", friendToDel);
+        // printf("new friends list: %s\n", newFriendsList);
+        strcpy(copy_of_friends, newFriendsList);
+    }
+    friends_count = get_no_of_friends(newFriendsList);
+    printf("friends count: %d\n", friends_count);
+    strcpy(friendsIDs, newFriendsList);
+}
 
 void init_array_and_vars(){
     friendsIDs = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char)); // counting the spaces between IDs
@@ -301,7 +313,6 @@ int main(void){
     int clientID;
     sleep(2);
 
-    // del("123");
     ///////////////////////////////////////////////////////////////
     // while(1){ // serving clients according to clientsInd
     //     printf("\nFirst things first\n");
@@ -358,6 +369,7 @@ int main(void){
 // - with one client (for sure): list();
 // - friends("234 123 456 777"); <- but they have to be connected
 // - add("222 234");
+// - del("123");
 
 
 /*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
