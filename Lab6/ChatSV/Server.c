@@ -27,6 +27,7 @@ komunikaty z:
 #include "Server.h"
 
 #define DATE_LENGTH 30
+#define MAX_ID_LENGTH 10
 
 typedef struct client{
     int clientID;
@@ -34,6 +35,8 @@ typedef struct client{
 } client;
 // key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
 client clients[MAX_CL_COUNT];
+char *friendsIDs;
+int friends_count = 0;
 int clientsInd = 0;
 int flags = IPC_CREAT | 0666;
 /*
@@ -87,7 +90,7 @@ void login_client(){
     sprintf(answer.mtext, "%d", cl_msqid);
     printf("ANSWER WITH CLIENTID: %s\n", answer.mtext);
         // send answer
-    if(msgsnd(cl_msqid, &answer, strlen(answer.mtext)+1, IPC_NOWAIT) < 0){
+    if(msgsnd(cl_msqid, &answer, strlen(answer.mtext), IPC_NOWAIT) < 0){
        die_errno("msgsnd, answering client");
     }
 
@@ -114,6 +117,7 @@ void SIGINThandler(int signum){
         sleep(1);
         if(msgrcv(clients[i].clientID, NULL, MAX_MSG_SIZE, STOP, IPC_NOWAIT) < 0)
             die_errno("didn't receive STOP message from client");
+        rm_client_queue(clients[i].clientID);
     }
     exit(0);
 }
@@ -137,7 +141,7 @@ void send_msg(int cl_msqid, int type, char *message, char *errno_msg){
 
     printf("SENDING: %s\n", mesg.mtext);
 
-    if(msgsnd(cl_msqid, &mesg, strlen(mesg.mtext)+1, IPC_NOWAIT) < 0)
+    if(msgsnd(cl_msqid, &mesg, strlen(mesg.mtext), IPC_NOWAIT) < 0)
         die_errno(errno_msg);
 }
 
@@ -162,8 +166,99 @@ void list(){
             printf("%d ", clients[i].clientID);
 }
 
+void stop(int cl_msqid){
+    int i; // client index in the clients array - needed to put -1 there
+    // what signals that client is no longer connected to the server
+    for(i = 0; i < MAX_CL_COUNT; i++)
+        if(clients[i].clientID == cl_msqid) break;
+    if(clients[i].clientID != cl_msqid)
+        die_errno("STOP: Clients ID not found in the array");
+    rm_client_queue(clients[i].clientID);
+    clients[i].clientID = clients[i].pid = -1;
+}
+
+int is_client_connected(char *clientID){
+    int cl_ID = (int) strtol(clientID, NULL, 10);
+    for(int i = 0; i < MAX_CL_COUNT; i++){
+        if(clients[i].clientID == cl_ID)
+            return 1;
+    }
+    return 0;
+}
+void set_new_friends(char *list){ // there won't be more clients connected 
+    // than max clients because either they won't be connected, or they will already
+    // be connected
+    // cleaning the old list:
+    strcpy(friendsIDs, "");
+    int new_friends_count = 0;
+    // counted this way because strtok destroys the string passed as an argument
+    char *copy_of_list = malloc((strlen(list)+1) * sizeof(char));
+    strcpy(copy_of_list, list);
+    char *oneFriend = strtok(copy_of_list, " ");
+    while(oneFriend){
+        /* TURNED OFF JUST FOR A WHILE!!!!!!!!!!!!
+        if(!is_client_connected(oneFriend)){
+            printf("Client not connected: %s\n", copy_of_list);
+        }
+        else{*/
+            new_friends_count++;
+            strcat(friendsIDs, " ");
+            strcat(friendsIDs, oneFriend);
+       /* } */
+        oneFriend = strtok(NULL, " ");
+    }
+    friends_count = new_friends_count;
+}
+
+// I should check there if the no of IDs in the list isn't > MAX_CLIENT_COUNT
+void friends(char *list_of_friendsIDs){ // empty message is sent if FRIENDS
+    // (without IDs) is sent
+    // printf("\n\nFRIENDS. friends count before: %d\n", friends_count);
+    // printf("FRIENDS IDS before: %s vs ", friendsIDs);
+    set_new_friends(list_of_friendsIDs);
+    // printf("VS after: %d\n", friends_count);
+    // printf("after: %s\n", friendsIDs);
+}
+
+void add(char *list_of_friends){
+    // printf("ADD: before: %s vs ", friendsIDs);
+    strcat(friendsIDs, " ");
+    strcat(friendsIDs, list_of_friends);
+    // printf("after: %s\n", friendsIDs);
+}
+
+
+///
+//
+// TO TEST!!!!!!!!!!!!
+//
+// UNCOMMENT IF IN SET_NEW_FRIENDS!!!!!!!!!!!!!!!!!!!!
+///
+//
+//
+
+void del(char *friends_to_rmv){
+    char *newFriendsList = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
+    char *curFriend;
+    char *friendToDel = strtok(friends_to_rmv, " ");
+    while(friendToDel){
+        curFriend = strtok(friendsIDs, " ");
+        while(curFriend){
+            if(curFriend != friendToDel){
+
+            }
+        }
+        if(!curFriend){
+
+        }
+    }
+}
+
+
 void init_array_and_vars(){
+    friendsIDs = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char)); // counting the spaces between IDs
     clientCount = -1;
+    friends_count = 0;
     for(int i = 0; i < MAX_CL_COUNT; i++)
         clients[i].clientID = clients[i].pid = -1;
 }
@@ -187,21 +282,28 @@ int main(void){
     // --- changing it
     msg *rcvd_msg;
     int clientID;
+    sleep(2);
+    friends("234 123 456 777");
+    add("222");
+    del("123");
     ///////////////////////////////////////////////////////////////
     // while(1){ // serving clients according to clientsInd
     //     printf("\nFirst things first\n");
     //     for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
-    //         for(int j = 0; j < MAX_CL_COUNT; j++)
+    //         for(int j = 0; j < MAX_CL_COUNT; j++){
+    //             printf("j: %d, ", j);
     //             while((rcvd_msg = receive_msg(clients[j].clientID, i, IPC_NOWAIT)) != NULL){
     //                 printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+    //                 sleep(1);
     //                 /*
-
+                
 
     //                 doddodododo sth
 
 
     //                 */
     //             }
+    //         }
     
     //     // then the remaining requests are served
     //     printf("\nThen the rest\n");
@@ -221,6 +323,16 @@ int main(void){
 
     //     }
     //     clientsInd++; // serving next client;
+    // }
+
+
+    // there is a segfault when i do it for the second time!!!
+
+
+    // while(1){
+        // msg *message = receive_msg(clients[0].clientID, 0, IPC_NOWAIT);
+        // if(!message) printf("NOOOOO");
+        // printf("message text: %s", message->mtext);
     // }
     return 0;
 }

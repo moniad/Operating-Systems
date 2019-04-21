@@ -16,7 +16,8 @@
 /* todo:
 - receiving messages from friends and so on
 - SERVER STUFF eg. list() IS NOT TESTED FOR MULTIPLE CLIENTS!!!!
-- some server stuff
+- some server stuff (handling SIGINT doesn't work on server side - server is not waiting untill everyone
+sends STOP to them)
 jak daję flagę IPC_NOWAIT, to muszę sprawdzać, czy msg nie jest NULL-em!
 
 */
@@ -32,7 +33,6 @@ char *cmd;
 char dlm[] = " \n\t";
 char def_file_name[] = "jobs.txt";
 
-void friends();
 void identify_cmd();
 
 struct msg *receive_msg(int serv_msqid, int type, int flag){
@@ -205,6 +205,7 @@ void to_one(){
 }
 
 void identify_cmd(){
+    sleep(2);
     if(strcmp(cmd, "STOP") == 0) stop();
     else if(strcmp(cmd, "LIST") == 0) list();
     else if(strcmp(cmd, "FRIENDS") == 0) add(FRIENDS);
