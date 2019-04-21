@@ -14,6 +14,7 @@
 #define MAX_FILE_SIZE 1000
 
 /* todo:
+- USING TEST.C, CORRECT SERVER.C!!!!!!!!!!!!!!
 - receiving messages from friends and so on
 - SERVER STUFF eg. list() IS NOT TESTED FOR MULTIPLE CLIENTS!!!!
 - some server stuff (handling SIGINT doesn't work on server side - server is not waiting untill everyone

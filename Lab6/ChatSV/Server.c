@@ -186,24 +186,20 @@ int is_client_connected(char *clientID){
     return 0;
 }
 
-
-//
-// TO DO
-// THIS FUNCTION DOESN'T WORK!!!!!!!! becasue of it strtok doesn't work!!!!!!!
 int is_client_a_friend(char *clientID){
-     // counted this way because strtok destroys the string passed as an argument
-    char *copy_of_friends = malloc(strlen(friendsIDs));
+    // counted this way because strtok destroys the string passed as an argument
+    char *copy_of_friends = malloc(MAX_CL_COUNT * (MAX_ID_LENGTH+1) * sizeof(char));
     strcpy(copy_of_friends, friendsIDs);
-    char *friendID = strtok(copy_of_friends, " ");
-    while(friendID){
-        if(strcmp(friendID, clientID) == 0)
+    char *friendID;
+    while((friendID = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL){
+        // printf("friendID: %s\n", friendID);
+        if(strcmp(friendID, clientID) == 0){
             return 1;
-        friendID = strtok(NULL, " ");
+        }
     }
-    // free(copy_of_friends);
+    // free(copy_of_friends); <- FORBIDDEN!!!
     return 0;
 }
-
 
 void set_new_friends(int type, char *list){ // there won't be more clients connected 
     // than max clients because either they won't be connected, or they will already
@@ -218,18 +214,19 @@ void set_new_friends(int type, char *list){ // there won't be more clients conne
         new_friends_count = friends_count;
     else die_errno("Incorrect type passed to set_new_friends");
     // counted this way because strtok destroys the string passed as an argument
-    // char *copy_of_list = malloc((strlen(list)+1) * sizeof(char));
-    // strcpy(copy_of_list, list);
-    printf("NEW FRIENDS LIST: %s\n", list); //copy_of_list);
-    char *oneFriend = strtok(list, " "); //(copy_of_list, " ");
-    while(oneFriend){
-        printf("ADDING (OR NOT) ONE FRIEND: %s TO THE FOLLOWING LIST: %s\n", oneFriend, friendsIDs);
+    // printf("NEW FRIENDS LIST: %s\n", list);
+    char *copy_of_list = malloc(MAX_CL_COUNT * (MAX_ID_LENGTH+1) * sizeof(char));
+    strcpy(copy_of_list, list);
+    char *oneFriend;
+
+    while((oneFriend = strtok_r(copy_of_list, " ", &copy_of_list)) != NULL){
+        // printf("ADDING (OR NOT) ONE FRIEND: %s\n", oneFriend);
         /* TURNED OFF JUST FOR A WHILE!!!!!!!!!!!!
         if(!is_client_connected(oneFriend)){
             printf("Client not connected: %s\n", copy_of_list);
         }
         
-        else*/ if(is_client_a_friend(oneFriend)){
+        else */if(is_client_a_friend(oneFriend)){
             printf("Client %s is already among friends\n", oneFriend);
         }
         else{
@@ -237,41 +234,27 @@ void set_new_friends(int type, char *list){ // there won't be more clients conne
             strcat(friendsIDs, " ");
             strcat(friendsIDs, oneFriend);
         }
-        oneFriend = strtok(NULL, " ");
-        printf("AFTER ALL One friend: %s\n", oneFriend);
+        // printf("AFTER ALL One friend: %s AND LIST %s\n", oneFriend, friendsIDs);
     }
     friends_count = new_friends_count;
 }
 
-// I should check there if the no of IDs in the list isn't > MAX_CLIENT_COUNT
-void friends(char *list_of_friendsIDs){ // empty message is sent if FRIENDS
-    // (without IDs) is sent
-    // printf("\n\nFRIENDS. friends count before: %d\n", friends_count);
-    printf("FRIENDS IDS before: %s vs ", friendsIDs);
-    set_new_friends(FRIENDS, list_of_friendsIDs);
-    // printf("VS after: %d\n", friends_count);
-    printf("after: %s\n", friendsIDs);
-}
-
-
-///
-//
-// TO TEST!!!!!!!!!!!!
-//
-// UNCOMMENT IF IN SET_NEW_FRIENDS!!!!!!!!!!!!!!!!!!!!
-///
-//
-//
 void add(char *list_of_friends){ // includes checking if given friend is only once
     // on a list
     printf("ADD: before: %s vs ", friendsIDs);
     set_new_friends(ADD, list_of_friends);
-    // strcat(friendsIDs, " ");
-    // strcat(friendsIDs, list_of_friends);
     printf("after: %s\n", friendsIDs);
 }
 
+void friends(char *list_of_friends){
+    printf("FRIENDS: before: %s vs ", friendsIDs);
+    set_new_friends(FRIENDS, list_of_friends);
+    printf("after: %s\n", friendsIDs);
+}
 
+//
+// TO DO
+//
 
 // void del(char *friends_to_rmv){
 //     char *newFriendsList = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char));
@@ -322,8 +305,7 @@ int main(void){
     msg *rcvd_msg;
     int clientID;
     sleep(2);
-    friends("234 123 456 777");
-    // add("222");
+
     // del("123");
     ///////////////////////////////////////////////////////////////
     // while(1){ // serving clients according to clientsInd
@@ -379,6 +361,9 @@ int main(void){
 // works :)
 // - with all: echo(clients[0].clientID, "heeeeej");
 // - with one client (for sure): list();
+// - friends("234 123 456 777"); <- but they have to be connected
+// - add("222 234");
+
 
 /*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
  PLACES WITH -1 THERE? ?? ? IS IT OK???)
