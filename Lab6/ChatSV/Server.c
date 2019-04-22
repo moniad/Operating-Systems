@@ -390,7 +390,7 @@ void decode_message(msg *message){
             to_one((int) strtol(extract_ID_from_str(message->mtext), NULL, 10), 
                 message->msqid, message->mtext); break;
         case STOP:
-            stop((int) strtol(extract_ID_from_str(message->mtext), NULL, 10));
+            stop(message->msqid);
             break;
         default:
             break;
@@ -435,7 +435,7 @@ int main(void){
                 // printf("j: %d, ClientID: %d\n", j, clientID);
                 if(clientID == -1) continue;
                 while((rcvd_msg = receive_msg(clientID, i, IPC_NOWAIT)) != NULL){
-                    printf("RECEIVED MESSAGE: %s from %d\n", rcvd_msg->mtext, clientID);
+                    printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg->mtext, (int) rcvd_msg->mtype, clientID);
                     decode_message(rcvd_msg);
                 }
             }
@@ -450,7 +450,7 @@ int main(void){
         if(clientID != -1){
             printf("Messages from client: %d\n", clientID);
             while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
-                printf("RECEIVED MESSAGE: %s from %d\n", rcvd_msg->mtext, clientID);
+                printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg->mtext, (int) rcvd_msg->mtype, clientID);
                 sleep(1);
                 decode_message(rcvd_msg);
             }
@@ -458,16 +458,6 @@ int main(void){
         clientsInd++; // serving next client;
         clientsInd %= MAX_CL_COUNT+1;
     }
-
-
-    // there is a segfault when i do it for the second time!!!
-
-
-    // while(1){
-        // msg *message = receive_msg(clients[0].clientID, 0, IPC_NOWAIT);
-        // if(!message) printf("NOOOOO");
-        // printf("message text: %s", message->mtext);
-    // }
     return 0;
 }
 
@@ -479,21 +469,3 @@ int main(void){
 // - del("123");
 // - to_all_or_friends(TO_FRIENDS, 100, "ALA ma KOTA");
 // to_one(100, 200, "ALA NIE ma PSAA haha!");
-
-
-/*  receive stop from Client. LOGGING IN A CLIENT SHOULD BE CHANGED (WE CAN FIND
- PLACES WITH -1 THERE? ?? ? IS IT OK???)
-    
-    // clientID
-    int clientInd = -1;
-    for(int i = 0; i < clientCount; i++)
-        if(clientID == clientsID[i]){
-            clientInd = i;
-            break;
-        }
-    receive_msg(clientsID[clientInd], STOP);
-    // remove client's ID from the table
-    clientsID[clientInd] = -1;
-    rm_client_queue(clientID);
-
-*/ // getting stop from client

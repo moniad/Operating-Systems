@@ -123,6 +123,7 @@ char *get_file_content(char *path_to_file){
 void stop(){
     printf("STOP\n");
     send_msg(STOP, "");
+    // sleep(10);
     exit(0);
 }
 
