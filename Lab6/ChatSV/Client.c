@@ -14,7 +14,7 @@
 #define MAX_FILE_SIZE 1000
 
 /* todo:
-- receiving messages from friends and so on
+- receiving messages from friends and so on - I can do fork() and do receive_msg() from child!!!
 - SERVER STUFF eg. list() IS NOT TESTED FOR MULTIPLE CLIENTS!!!!
 - some server stuff (handling SIGINT doesn't work on server side - server is not waiting untill everyone
 sends STOP to them)
@@ -241,7 +241,7 @@ int main(int argc, char **argv){
     parse_input(argc, argv);
 
     // getenv() - searches the env list in order to find the env variable name 
-    if((key = ftok(getenv("HOME"), PROJ_ID) % 1000) < 0) die_errno("ftok");
+    if((key = ftok(getenv("HOME"), PROJ_ID) % 10000) < 0) die_errno("ftok");
     printf("key: %d\n", key);
     // get server msqid:
     if((serv_msqid = msgget(SERV_KEY, 0666)) < 0) die_errno("msget");

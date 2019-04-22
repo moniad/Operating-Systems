@@ -52,6 +52,7 @@ Serwer może wysłać do klientów komunikaty:
 */
 int clientCount;
 struct sigaction act;
+void SIGINThandler(int signum);
 
 char *get_date_time(){
     time_t t = time(NULL);
@@ -71,41 +72,6 @@ struct msg *receive_msg(int msqid, int type, int msgflag){
     return rcvd_init_msg;
 }
 
-//change it
-void login_client(){
-    if(clientCount == MAX_CL_COUNT){
-        fprintf(stderr, "%s", "Cannot login new client. Too many clients logged in. Wait");
-    }
-    int cl_msqid;
-    // receive message
-    msg *rcvd_init_msg = receive_msg(serv_msqid, INIT, 0);
-    
-    printf("RECEIVED: %s\n", rcvd_init_msg->mtext);
-    key_t cl_key = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
-    //-------------------
-    // answer 
-    // client using their queue. we know its key because it was sent in the init msg
-    if((cl_msqid = msgget(cl_key, flags)) < 0){
-        die_errno("msget, answering client");
-    }
-    printf("CLIENT ID: %d\n", cl_msqid);
-    clients[++clientCount].clientID = cl_msqid;
-    // getting the PID of the process who SENT their key just before a while
-    rcvd_init_msg = receive_msg(serv_msqid, CL_PID, 0);
-    clients[clientCount].pid = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
-    printf("RECEIVED && CONVERTED PID %d\n", clients[clientCount].pid);
-    msg answer;
-    answer.mtype = ANS;
-    sprintf(answer.mtext, "%d", cl_msqid);
-    printf("ANSWER WITH CLIENTID: %s\n", answer.mtext);
-        // send answer
-    if(msgsnd(cl_msqid, &answer, strlen(answer.mtext), IPC_NOWAIT) < 0){
-       die_errno("msgsnd, answering client");
-    }
-
-    printf("MSG SENT TO CLIENT\n");
-}
-
 void rm_queue(void){
     if(msgctl(serv_msqid, command, NULL) < 0){
         die_errno("ipcrm");
@@ -116,20 +82,6 @@ void rm_client_queue(int cl_msqid){
     if(msgctl(cl_msqid, command, NULL) < 0){
         die_errno("ipcrm client's queue");
     }
-}
-
-// make it work!!!!!
-void SIGINThandler(int signum){
-    printf("SERVER: Received SIGINT. Quiting...");
-    // sending to all clients SIGINT && waiting for all clients to send STOP
-    for(int i = 0; i < clientCount; i++){
-        kill(clients[i].pid, SIGINT);
-        sleep(1);
-        if(msgrcv(clients[i].clientID, NULL, MAX_MSG_SIZE, STOP, IPC_NOWAIT) < 0)
-            die_errno("didn't receive STOP message from client");
-        rm_client_queue(clients[i].clientID);
-    }
-    exit(0);
 }
 
 void set_signal_handling(){
@@ -346,10 +298,78 @@ void to_one(int cl_from, int cl_to, char *string){ // supposing cl_to is on the 
 
 void init_array_and_vars(){
     friendsIDs = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char)); // counting the spaces between IDs
-    clientCount = -1;
+    clientCount = 0;
     friends_count = 0;
     for(int i = 0; i < MAX_CL_COUNT; i++)
         clients[i].clientID = clients[i].pid = -1;
+}
+
+///
+///
+// WORKING ON IT
+///
+///
+
+// make it work!!!!!
+void SIGINThandler(int signum){
+    printf("SERVER: Received SIGINT. Quiting...");
+    // sending to all clients SIGINT && waiting for all clients to send STOP
+    for(int i = 0; i < clientCount; i++){
+        kill(clients[i].pid, SIGINT);
+        sleep(1);
+        if(msgrcv(clients[i].clientID, NULL, MAX_MSG_SIZE, STOP, IPC_NOWAIT) < 0)
+            die_errno("didn't receive STOP message from client");
+        rm_client_queue(clients[i].clientID);
+    }
+    exit(0);
+}
+
+//change it
+void login_client(){
+    if(clientCount == MAX_CL_COUNT){
+        fprintf(stderr, "%s", "Cannot login new client. Too many clients logged in. Wait");
+    }
+    int cl_msqid;
+    // receive message
+    msg *rcvd_init_msg = receive_msg(serv_msqid, INIT, 0);
+    
+    printf("RECEIVED: %s\n", rcvd_init_msg->mtext);
+    key_t cl_key = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
+    //-------------------
+    // answer 
+    // client using their queue. we know its key because it was sent in the init msg
+    if((cl_msqid = msgget(cl_key, flags)) < 0){
+        die_errno("msget, answering client");
+    }
+    printf("CLIENT ID: %d\n", cl_msqid);
+    clients[clientCount].clientID = cl_msqid;
+    // getting the PID of the process who SENT their key just before a while
+    rcvd_init_msg = receive_msg(serv_msqid, CL_PID, 0);
+    clients[clientCount].pid = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
+    printf("RECEIVED && CONVERTED PID %d\n", clients[clientCount].pid);
+    msg answer;
+    answer.mtype = ANS;
+    sprintf(answer.mtext, "%d", cl_msqid);
+    printf("ANSWER WITH CLIENTID: %s\n", answer.mtext);
+        // send answer
+    if(msgsnd(cl_msqid, &answer, strlen(answer.mtext), IPC_NOWAIT) < 0){
+       die_errno("msgsnd, answering client");
+    }
+    clientCount++;
+    printf("MSG SENT TO CLIENT\n");
+}
+
+// should I pass the struct msg itself or divide it in while() in main fct????
+void recognize_command(int type, char *msg_txt){
+    switch (type)
+    {
+        case ECHO:
+            echo()
+            break;
+    
+        default:
+            break;
+    }
 }
 
 int main(void){
@@ -368,40 +388,43 @@ int main(void){
     
     // ------ ok
     login_client(); // may need changes
+    printf("\n\nALL CLIENTS AFTER LOGIN:\n");
+    for(int i = 0; i < MAX_CL_COUNT; i++){
+        printf("i: %d, clientID: %d\n", i, clients[i].clientID);
+    }
+    printf("\n\n");
     // --- changing it
     msg *rcvd_msg;
     int clientID;
     sleep(2);
-    add("222 234");
+    // add("222 234");
     // to_all_or_friends(TO_FRIENDS, 100, "ALA ma KOTA");
     
     ///////////////////////////////////////////////////////////////
     // while(1){ // serving clients according to clientsInd
-    //     printf("\nFirst things first\n");
+    //     // printf("\nFirst things first\n");
     //     for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
     //         for(int j = 0; j < MAX_CL_COUNT; j++){
-    //             printf("j: %d, ", j);
-    //             while((rcvd_msg = receive_msg(clients[j].clientID, i, IPC_NOWAIT)) != NULL){
-    //                 printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+    //             clientID = clients[j].clientID;
+    //             // printf("j: %d, ClientID: %d\n", j, clientID);
+    //             if(clientID == -1) continue;
+    //             while((rcvd_msg = receive_msg(clientID, i, IPC_NOWAIT)) != NULL){
+    //                 printf("RECEIVED MESSAGE: %s from %d\n", rcvd_msg->mtext, clientID);
     //                 sleep(1);
-    //                 /*
-                
-
-    //                 doddodododo sth
-
-
-    //                 */
+                    //    recognize_command(rcvd_msg->mtype, rcvd_msg->mtext);
     //             }
     //         }
     
     //     // then the remaining requests are served
-    //     printf("\nThen the rest\n");
+    //     // printf("\nThen the rest\n");
     //     // serving client whose id == clients[clientsInd].clientID
     //         // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
     //         // It would have been received if it had come.
     //     clientID = clients[clientsInd].clientID;
-    //     while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
-    //         printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
+    //     if(clientID != -1){
+    //         printf("Messages from client: %d\n", clientID);
+    //         while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
+    //             printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
     //             /*
 
 
@@ -409,7 +432,7 @@ int main(void){
 
 
     //             */
-
+    //         }
     //     }
     //     clientsInd++; // serving next client;
     // }
