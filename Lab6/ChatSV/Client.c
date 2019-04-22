@@ -49,12 +49,13 @@ struct msg *receive_msg(int serv_msqid, int type, int flag){
 void send_msg(int type, char *message){
     msg mesg;
     mesg.mtype = type;
+    mesg.msqid = msqid;
     strcpy(mesg.mtext, message);
     
     printf("SENDING: %s\n", mesg.mtext);
 
     int qid = type == INIT ? serv_msqid : msqid;
-    if(msgsnd(qid, &mesg, strlen(mesg.mtext)+1, IPC_NOWAIT) < 0){
+    if(msgsnd(qid, &mesg, MAX_MSG_SIZE, IPC_NOWAIT) < 0){
         die_errno("msgsnd");
     }
     if(type == INIT){
@@ -62,17 +63,17 @@ void send_msg(int type, char *message){
         char message[MAX_MSG_SIZE];
         sprintf(message, "%d", getpid());
         strcpy(mesg.mtext, message);
-        if(msgsnd(qid, &mesg, strlen(message), IPC_NOWAIT) < 0){
+        if(msgsnd(qid, &mesg, MAX_MSG_SIZE, IPC_NOWAIT) < 0){
             die_errno("pid msgsnd");
         }
     }
 }
 
-void rm_queue(void){
-    if(msgctl(msqid, command, NULL) < 0){
-        die_errno("ipcrm");
-    }
-}
+// void rm_queue(void){
+//     if(msgctl(msqid, command, NULL) < 0){
+//         die_errno("ipcrm");
+//     }
+// }
 
 void SIGINThandler(int signum){
     printf("CLIENT: key: %d Received SIGINT. Sending STOP to SERVER...", key);
@@ -121,13 +122,13 @@ char *get_file_content(char *path_to_file){
 
 void stop(){
     printf("STOP\n");
-    send_msg(STOP, key_string);
+    send_msg(STOP, "");
     exit(0);
 }
 
 void list(){
     printf("LIST\n");
-    send_msg(LIST, key_string); 
+    send_msg(LIST, ""); 
     printf("\n");
 }
 
@@ -248,7 +249,7 @@ int main(int argc, char **argv){
     printf("SERVER ID: %d\n", serv_msqid);
     // get your msqid
     if((msqid = msgget(key, flags)) < 0) die_errno("msgget");
-    if(atexit(rm_queue) < 0) die_errno("atexit");
+    // if(atexit(rm_queue) < 0) die_errno("atexit");
     set_signal_handling();
     // now send to server msgqueue the key of the newly created queue
     get_key_string();
@@ -258,7 +259,6 @@ int main(int argc, char **argv){
     // receive message with ID
     msg *rcvd_msg = receive_msg(msqid, ANS, 0); 
     printf("RECEIVED ID (NUMBER IN THE QUEUE): %s\n", rcvd_msg->mtext);
-
 
 ////////////////////////////////////////
 // -- ECHO works on both sides :)

@@ -25,6 +25,7 @@ typedef enum msgtype {
 
 typedef struct msg{
     long mtype;
+    int msqid; // used mainly to identify client
     char mtext[MAX_MSG_SIZE];
 } msg;
 

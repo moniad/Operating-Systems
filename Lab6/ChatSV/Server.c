@@ -42,7 +42,6 @@ int flags = IPC_CREAT | 0666;
 /*
 clients
 change login_client()
-SIGINThandler() - to check - receive stop from all clients
 
 Serwer może wysłać do klientów komunikaty:
 - inicjujący pracę klienta (kolejka główna serwera)
@@ -103,7 +102,7 @@ void send_msg(int cl_msqid, int type, char *message, char *errno_msg){
 
     printf("SENDING: %s\n", mesg.mtext);
 
-    if(msgsnd(cl_msqid, &mesg, strlen(mesg.mtext), IPC_NOWAIT) < 0)
+    if(msgsnd(cl_msqid, &mesg, MAX_MSG_SIZE, IPC_NOWAIT) < 0)
         die_errno(errno_msg);
 }
 
@@ -296,6 +295,14 @@ void to_one(int cl_from, int cl_to, char *string){ // supposing cl_to is on the 
     send_msg(cl_to, TO_ONE, res_string, "msgsnd, to_one()");
 }
 
+char *extract_ID_from_str(char *string){
+    char *str_copy = malloc(MAX_MSG_SIZE * sizeof(char));
+    strcpy(str_copy, string);
+    char *ID = strtok_r(str_copy, " ", &str_copy);
+    if(ID == NULL) die_errno("extracting ID... ID is NULL!");
+    return ID;
+}
+
 void init_array_and_vars(){
     friendsIDs = calloc(MAX_CL_COUNT * (1 + MAX_ID_LENGTH), sizeof(char)); // counting the spaces between IDs
     clientCount = 0;
@@ -304,25 +311,29 @@ void init_array_and_vars(){
         clients[i].clientID = clients[i].pid = -1;
 }
 
-///
-///
-// WORKING ON IT
-///
-///
-
-// make it work!!!!!
 void SIGINThandler(int signum){
+    msg *stop_msg;
     printf("SERVER: Received SIGINT. Quiting...");
     // sending to all clients SIGINT && waiting for all clients to send STOP
     for(int i = 0; i < clientCount; i++){
         kill(clients[i].pid, SIGINT);
         sleep(1);
-        if(msgrcv(clients[i].clientID, NULL, MAX_MSG_SIZE, STOP, IPC_NOWAIT) < 0)
-            die_errno("didn't receive STOP message from client");
+        if(clients[i].clientID != -1)
+            if((stop_msg = receive_msg(clients[i].clientID, STOP, 0)) == NULL){
+                printf("client ID = %d\n", clients[i].clientID);
+                die_errno("didn't receive STOP message from client");
+            }
         rm_client_queue(clients[i].clientID);
     }
     exit(0);
 }
+
+
+///
+///
+// WORKING ON IT
+///
+///
 
 //change it
 void login_client(){
@@ -359,14 +370,28 @@ void login_client(){
     printf("MSG SENT TO CLIENT\n");
 }
 
-// should I pass the struct msg itself or divide it in while() in main fct????
-void recognize_command(int type, char *msg_txt){
-    switch (type)
-    {
+void decode_message(msg *message){
+    switch (message->mtype){
         case ECHO:
-            echo( )
+            echo(message->msqid, message->mtext); break;
+        case LIST:
+            list(); break;
+        case FRIENDS:
+            friends(message->mtext); break;
+        case ADD:
+            add(message->mtext); break;
+        case DEL:
+            del(message->mtext); break;
+        case TO_ALL:
+            to_all_or_friends(TO_ALL, message->msqid, message->mtext); break;
+        case TO_FRIENDS:
+            to_all_or_friends(TO_FRIENDS, message->msqid, message->mtext); break;
+        case TO_ONE: // ID is the first elem of the string
+            to_one((int) strtol(extract_ID_from_str(message->mtext), NULL, 10), 
+                message->msqid, message->mtext); break;
+        case STOP:
+            stop((int) strtol(extract_ID_from_str(message->mtext), NULL, 10));
             break;
-    
         default:
             break;
     }
@@ -389,9 +414,10 @@ int main(void){
     // ------ ok
     login_client(); // may need changes
     printf("\n\nALL CLIENTS AFTER LOGIN:\n");
-    for(int i = 0; i < MAX_CL_COUNT; i++){
-        printf("i: %d, clientID: %d\n", i, clients[i].clientID);
-    }
+    for(int i = 0; i < MAX_CL_COUNT; i++)
+        if(clients[i].clientID != -1)
+            printf("i: %d, clientID: %d\n", i, clients[i].clientID);
+
     printf("\n\n");
     // --- changing it
     msg *rcvd_msg;
@@ -401,41 +427,37 @@ int main(void){
     // to_all_or_friends(TO_FRIENDS, 100, "ALA ma KOTA");
     
     ///////////////////////////////////////////////////////////////
-    // while(1){ // serving clients according to clientsInd
-    //     // printf("\nFirst things first\n");
-    //     for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
-    //         for(int j = 0; j < MAX_CL_COUNT; j++){
-    //             clientID = clients[j].clientID;
-    //             // printf("j: %d, ClientID: %d\n", j, clientID);
-    //             if(clientID == -1) continue;
-    //             while((rcvd_msg = receive_msg(clientID, i, IPC_NOWAIT)) != NULL){
-    //                 printf("RECEIVED MESSAGE: %s from %d\n", rcvd_msg->mtext, clientID);
-    //                 sleep(1);
-                    //    recognize_command(rcvd_msg->mtype, rcvd_msg->mtext);
-    //             }
-    //         }
+    while(1){ // serving clients according to clientsInd
+        // printf("\nFirst things first\n");
+        for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
+            for(int j = 0; j < MAX_CL_COUNT; j++){
+                clientID = clients[j].clientID;
+                // printf("j: %d, ClientID: %d\n", j, clientID);
+                if(clientID == -1) continue;
+                while((rcvd_msg = receive_msg(clientID, i, IPC_NOWAIT)) != NULL){
+                    printf("RECEIVED MESSAGE: %s from %d\n", rcvd_msg->mtext, clientID);
+                    decode_message(rcvd_msg);
+                }
+            }
     
-    //     // then the remaining requests are served
-    //     // printf("\nThen the rest\n");
-    //     // serving client whose id == clients[clientsInd].clientID
-    //         // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
-    //         // It would have been received if it had come.
-    //     clientID = clients[clientsInd].clientID;
-    //     if(clientID != -1){
-    //         printf("Messages from client: %d\n", clientID);
-    //         while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
-    //             printf("RECEIVED MESSAGE: %s\n", rcvd_msg->mtext);
-    //             /*
-
-
-    //             doddodododo sth
-
-
-    //             */
-    //         }
-    //     }
-    //     clientsInd++; // serving next client;
-    // }
+        // then the remaining requests are served
+        sleep(1);
+        printf("\nThen the rest\n");
+        // serving client whose id == clients[clientsInd].clientID
+            // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
+            // It would have been received if it had come.
+        clientID = clients[clientsInd].clientID;
+        if(clientID != -1){
+            printf("Messages from client: %d\n", clientID);
+            while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
+                printf("RECEIVED MESSAGE: %s from %d\n", rcvd_msg->mtext, clientID);
+                sleep(1);
+                decode_message(rcvd_msg);
+            }
+        }
+        clientsInd++; // serving next client;
+        clientsInd %= MAX_CL_COUNT+1;
+    }
 
 
     // there is a segfault when i do it for the second time!!!
