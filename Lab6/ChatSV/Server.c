@@ -364,7 +364,7 @@ void recognize_command(int type, char *msg_txt){
     switch (type)
     {
         case ECHO:
-            echo()
+            echo( )
             break;
     
         default:
