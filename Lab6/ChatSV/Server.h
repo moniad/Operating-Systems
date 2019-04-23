@@ -11,6 +11,7 @@
 #define PROJ_ID 101
 #define SERV_KEY 112
 #define MSG_TYPES_COUNT 12
+#define MAX_CMD_SIZE 100
 
 int command = IPC_RMID; // for atexit()
 int serv_msqid; // id of server queue for clients to send their messages to server

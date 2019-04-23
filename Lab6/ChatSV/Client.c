@@ -181,7 +181,7 @@ void add(int type){
     send_msg(type, message);
     // is not digit any more
     if(cmd) identify_cmd(); // go on, cause we read it, but didn't use it!
-    // free(message); <- is it OK????
+    // free(message); NOPE - freeing on other side
 }
 
 void to_all_or_friends(int type){
@@ -230,6 +230,7 @@ void send_jobs_to_server(){
     identify_cmd();
     while((cmd = strtok(NULL, dlm)) != NULL)
         identify_cmd();
+    free(file_content);
 }
 
 void parse_input(int argc, char **argv){
@@ -260,6 +261,7 @@ int main(int argc, char **argv){
     // receive message with ID
     msg *rcvd_msg = receive_msg(msqid, ANS, 0); 
     printf("RECEIVED ID (NUMBER IN THE QUEUE): %s\n", rcvd_msg->mtext);
+    // free(rcvd_msg); <- messages are not received :v if I do it 
 
 ////////////////////////////////////////
 // -- ECHO works on both sides :)

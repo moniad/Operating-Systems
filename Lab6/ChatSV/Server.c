@@ -36,6 +36,7 @@ typedef struct client{
 // key_t clients[MAX_CL_COUNT]; // client keys -- maybe IDs instead???
 client clients[MAX_CL_COUNT];
 char *friendsIDs;
+char *datetime;
 int friends_count = 0;
 int clientsInd = 0;
 int flags = IPC_CREAT | 0666;
@@ -56,7 +57,6 @@ void SIGINThandler(int signum);
 char *get_date_time(){
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-    char * datetime = malloc(DATE_LENGTH * sizeof(char));
     if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
         die_errno("strftime");
     return datetime;
@@ -104,6 +104,8 @@ void send_msg(int cl_msqid, int type, char *message, char *errno_msg){
 
     if(msgsnd(cl_msqid, &mesg, MAX_MSG_SIZE, IPC_NOWAIT) < 0)
         die_errno(errno_msg);
+    // free(message); //DON'T DO IT!!! THEY HAVE TO READ IT!!!
+    // free(errno_msg);
 }
 
 void echo(int cl_msqid, char *string){
@@ -113,6 +115,7 @@ void echo(int cl_msqid, char *string){
     strcat(res_string, " ");
     strcat(res_string, get_date_time());
     send_msg(cl_msqid, ECHO, res_string, "msgsnd, ECHO");
+    free(res_string);
 }
 
 void list(){
@@ -150,7 +153,7 @@ int is_client_a_friend(char *clientID){
     while((friendID = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL)
         if(strcmp(friendID, clientID) == 0)
             return 1;
-    // free(copy_of_friends); <- FORBIDDEN!!!
+    free(copy_of_friends); //<- FORBIDDEN!!!
     return 0;
 }
 
@@ -188,6 +191,7 @@ void set_new_friends(int type, char *list){ // there won't be more clients conne
         // printf("AFTER ALL One friend: %s AND LIST %s\n", oneFriend, friendsIDs);
     }
     friends_count = new_friends_count;
+    // free(copy_of_list); <- invalid
 }
 
 void add(char *list_of_friends){ // includes checking if given friend is only once
@@ -210,6 +214,7 @@ int get_no_of_friends(char *friends_IDs_list){
     char *friend;
     while((friend = strtok_r(copy_of_fr_IDs_list, " ", &copy_of_fr_IDs_list)) != NULL)
         friends++;
+    free(copy_of_fr_IDs_list);
     return friends;
 }
 
@@ -237,6 +242,8 @@ void del(char *friends_to_rmv){ // creating a new list. appending clients whose 
     friends_count = get_no_of_friends(newFriendsList);
     printf("friends count: %d\n", friends_count);
     strcpy(friendsIDs, newFriendsList);
+    free(newFriendsList);
+    free(copy_of_friends);
 }
 
 void to_all_or_friends(int type, int cl_msqid, char *string){
@@ -270,6 +277,8 @@ void to_all_or_friends(int type, int cl_msqid, char *string){
         }
     }
     else die_errno("Wrong type of msg in to_all_or_friends!");
+    free(res_string);
+    free(msqid_str);
 }
 
 void to_one(int cl_from, int cl_to, char *string){ // supposing cl_to is on the list
@@ -293,6 +302,8 @@ void to_one(int cl_from, int cl_to, char *string){ // supposing cl_to is on the 
     printf("FINAL MESSAGE: %s\n", res_string);
 
     send_msg(cl_to, TO_ONE, res_string, "msgsnd, to_one()");
+    free(res_string);
+    free(msqid_str);
 }
 
 char *extract_ID_from_str(char *string){
@@ -300,6 +311,7 @@ char *extract_ID_from_str(char *string){
     strcpy(str_copy, string);
     char *ID = strtok_r(str_copy, " ", &str_copy);
     if(ID == NULL) die_errno("extracting ID... ID is NULL!");
+    free(str_copy);
     return ID;
 }
 
@@ -309,6 +321,7 @@ void init_array_and_vars(){
     friends_count = 0;
     for(int i = 0; i < MAX_CL_COUNT; i++)
         clients[i].clientID = clients[i].pid = -1;
+    datetime = malloc(DATE_LENGTH * sizeof(char));
 }
 
 void SIGINThandler(int signum){
@@ -325,6 +338,7 @@ void SIGINThandler(int signum){
             }
         rm_client_queue(clients[i].clientID);
     }
+    free(stop_msg);
     exit(0);
 }
 
@@ -343,7 +357,7 @@ void login_client(){
     int cl_msqid;
     // receive message
     msg *rcvd_init_msg = receive_msg(serv_msqid, INIT, 0);
-    
+    if(!rcvd_init_msg) die_errno("NULL in login_client()");
     printf("RECEIVED: %s\n", rcvd_init_msg->mtext);
     key_t cl_key = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
     //-------------------
@@ -368,6 +382,7 @@ void login_client(){
     }
     clientCount++;
     printf("MSG SENT TO CLIENT\n");
+    free(rcvd_init_msg);
 }
 
 void decode_message(msg *message){
@@ -437,6 +452,7 @@ int main(void){
                 while((rcvd_msg = receive_msg(clientID, i, IPC_NOWAIT)) != NULL){
                     printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg->mtext, (int) rcvd_msg->mtype, clientID);
                     decode_message(rcvd_msg);
+                    free(rcvd_msg);
                 }
             }
     
@@ -453,11 +469,15 @@ int main(void){
                 printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg->mtext, (int) rcvd_msg->mtype, clientID);
                 sleep(1);
                 decode_message(rcvd_msg);
+                free(rcvd_msg);
             }
         }
         clientsInd++; // serving next client;
         clientsInd %= MAX_CL_COUNT+1;
     }
+    free(datetime);
+    free(friendsIDs);
+
     return 0;
 }
 
