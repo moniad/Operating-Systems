@@ -18,7 +18,9 @@
 #define PROJ_ID 7
 
 // const char pathname[] = "/key_path";
-
+struct sembuf take, give;
+int shmid, semid;
+key_t semkey;
 
 void die_errno(char *msg){
     perror(msg);
@@ -32,20 +34,19 @@ void parse_input(int argc, char **argv){
     //     strcpy(jobs_file_name, argv[1]);
 }
 
-int main(int argc, char **argv){
-    parse_input(argc, argv);
-
-    key_t semkey;
-    int semid;
+void create_and_init_semaphore(){
     if((semkey = ftok(getenv("HOME"), PROJ_ID)) < 0) die_errno("ftok");
     if((semid = semget(semkey, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget");
     
-    struct sembuf take, give;
     take.sem_num = give.sem_num = 0; //initialization
     take.sem_op = 1;
     give.sem_op = -1;
-    take.sem_flg = give.sem_num = 0; // SEM_UNDO; // 0
+    take.sem_flg = give.sem_num = 0;
+}
 
+int main(int argc, char **argv){
+    parse_input(argc, argv);
+    create_and_init_semaphore();
     pid_t child = fork();
     for(int i=0; i<3; i++)
         if(child == 0) {
