@@ -19,9 +19,10 @@
 // const char pathname[] = "/keypath";
 struct sembuf take, give;
 pid_t *workers;
-pid_t ppid;
+pid_t *loaders_pids;
 int workersCount;
 char **cycles;
+pid_t pid;
 
 void parse_input(int argc, char **argv){
     if(argc != 2) die_errno("Give me the number of workers\n");
@@ -44,16 +45,27 @@ void create_loader_processes(){
             sleep(1);
             execl("loader.o", cycles[i], NULL);
         }
+        else loaders_pids[i] = workers[i];
     }
 }
+
+void print_loaders_pids(){
+    if(getpid() == pid){
+        sleep(3);
+        printf("Loaders' pids:\n");
+        for(int i = 0; i < workersCount; i++)
+            printf("%d ", loaders_pids[i]);
+    }
+}
+
 int main(int argc, char **argv){
     parse_input(argc, argv);
+    pid = getpid();
     workers = malloc(workersCount * sizeof(pid_t));
-    ppid = getpid();
+    loaders_pids = malloc(workersCount * sizeof(pid_t));
     // *shmdata = 0;
     create_loader_processes();
-
-
+    print_loaders_pids();
     // while cycles != 0 <- it can be -1 if no conditions
     /*
         if(child != 0) {
