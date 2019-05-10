@@ -16,9 +16,7 @@
 
 // const char pathname[] = "/keypath";
 struct sembuf take, give;
-pid_t *workers;
 pid_t pid;
-int workersCount;
 int cycles = -1; // C, max packages number per worker!
 
 void parse_input(int argc, char **argv){
@@ -29,7 +27,6 @@ void parse_input(int argc, char **argv){
 
 int main(int argc, char **argv){
     parse_input(argc, argv);
-    workers = malloc(workersCount * sizeof(pid_t));
     pid = getpid();
    
     // while cycles != 0 <- it can be -1 if no conditions
