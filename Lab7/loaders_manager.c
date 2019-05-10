@@ -36,12 +36,7 @@ void parse_input(int argc, char **argv){
     //     printf("%s ", cycles[i]);
 }
 
-int main(int argc, char **argv){
-    parse_input(argc, argv);
-    workers = malloc(workersCount * sizeof(pid_t));
-    ppid = getpid();
-    // *shmdata = 0;
-
+void create_loader_processes(){
     for(int i=0; i<workersCount; i++){
         if((workers[i] = fork()) < 0) die_errno("fork()");
         if(workers[i] == 0){
@@ -50,6 +45,13 @@ int main(int argc, char **argv){
             execl("loader.o", cycles[i], NULL);
         }
     }
+}
+int main(int argc, char **argv){
+    parse_input(argc, argv);
+    workers = malloc(workersCount * sizeof(pid_t));
+    ppid = getpid();
+    // *shmdata = 0;
+    create_loader_processes();
 
 
     // while cycles != 0 <- it can be -1 if no conditions
