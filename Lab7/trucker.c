@@ -64,6 +64,7 @@ int main(int argc, char **argv){
     parse_input(argc, argv);
     
     // check if the size of shared memory and the code below are correct 
+    // move shmdata to "common.h"
 
     // create_and_init_semaphore();
     // create_and_init_shm();
