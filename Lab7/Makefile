@@ -3,6 +3,7 @@ all: semaphores.o loader.o
 	# make semaphores.o
 	make loader.o
 	make loaders_manager.o
+	make trucker.o
 	# make run
 
 semaphores.o: semaphores.c
@@ -14,8 +15,11 @@ loader.o: loader.c
 loaders_manager.o: loaders_manager.c
 	gcc -Wall -o loaders_manager.o loaders_manager.c
 
-run: loader.o
-	./loader.o
+trucker.o: trucker.c
+	gcc -Wall -o trucker.o trucker.c
+
+# run: loader.o
+# 	./loader.o
 
 clean:
 	rm *.o
