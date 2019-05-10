@@ -1,13 +1,21 @@
-all: semaphores.o
+all: semaphores.o loader.o
 	make clean
-	make semaphores.o
-	make run
+	# make semaphores.o
+	make loader.o
+	make loaders_manager.o
+	# make run
 
 semaphores.o: semaphores.c
 	gcc -Wall -o semaphores.o semaphores.c -g
 
-run: semaphores.o
-	./semaphores.o
+loader.o: loader.c
+	gcc -Wall -o loader.o loader.c
+
+loaders_manager.o: loaders_manager.c
+	gcc -Wall -o loaders_manager.o loaders_manager.c
+
+run: loader.o
+	./loader.o
 
 clean:
 	rm *.o
