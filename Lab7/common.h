@@ -7,6 +7,10 @@
 #define PROJ_ID 7
 #define SMH_SIZE 100
 
+char *shmdata; // shared memory
+
+/* but what should shared memory look like??? */
+
 void die_errno(char *msg){
     perror(msg);
     exit(1);

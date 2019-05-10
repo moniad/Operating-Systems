@@ -12,17 +12,19 @@
 #include <sys/shm.h> // shared memory ops
 #include <sys/stat.h> // S_IWUSR itd.
 #include <fcntl.h> // S_IWUSR
+#include <signal.h> // SIGINT handling
 #include "common.h"
 
 // const char pathname[] = "/keypath";
 struct sembuf take, give;
 int shmid, semid;
 key_t semkey, shmkey;
-char *shmdata;
 pid_t child;
 int capacity; // X
 int max_pckgsCount_on_the_belt; // K
 int max_pckgsWeight_on_the_belt; // M
+struct sigaction act; // SIGINT handling
+void SIGINThandler(int signum);
 
 void parse_input(int argc, char **argv){
     if(argc != 4) die_errno("Give me:\n 1) X - the capacity of the truck\n 2) K - max no of packages on the belt\n 3) M - max total sum of packages' weight\n");
@@ -49,10 +51,10 @@ void create_and_init_shm(){
 }
 
 void rmv_sem_and_detach_shm(){
-    if(wait(NULL) < 0) die_errno("wait");
-    // printf("removing sem and shm\n");
+    // if(wait(NULL) < 0) die_errno("wait");
+    printf("removing sem and shm\n");
     if(shmdt(shmdata) < 0) {
-        printf("errno: %d\n", errno);
+        // printf("errno: %d\n", errno);
         die_errno("shmdt");
     }
     if(semctl(semid, 1, IPC_RMID) < 0) die_errno("removing semaphore");
@@ -60,22 +62,31 @@ void rmv_sem_and_detach_shm(){
     // system("ipcrm -a");
 }
 
+void set_signal_handling(){
+    act.sa_handler = SIGINThandler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    if(sigaction(SIGINT, &act, NULL) < 0) die_errno("sigaction");
+    if(sigprocmask(SIG_SETMASK, &act.sa_mask, NULL) < 0) die_errno("sigprocmask");
+}
+
+void SIGINThandler(int signum){
+    printf("Trucker.c: Received SIGINT. Quiting...");
+    exit(0);
+}
 int main(int argc, char **argv){
     parse_input(argc, argv);
-    
-    // check if the size of shared memory and the code below are correct 
-    // move shmdata to "common.h"
+    set_signal_handling();
+    atexit(rmv_sem_and_detach_shm);
+    create_and_init_semaphore();
+    create_and_init_shm();
 
-    // create_and_init_semaphore();
-    // create_and_init_shm();
-
-
-    // TO DO: SIGINT handler? if atexit, it might not be necessary? only write "Handling SIGINT\n" or whatever.
+    // check if the size of shared memory is correct 
     // algorytm obsługi taśmy + warunek na masę paczek, pakowanie do ciężarówki
     // wypisywanie komunikatów u truckera i loaderów
 
     // child = fork();
-    // if(child != 0) atexit(rmv_sem_and_detach_shm);
+    // if(child != 0) 
     // // *shmdata = 0;
     // for(int i=0; i<3; i++){
     //     if(child != 0) {
@@ -97,6 +108,7 @@ int main(int argc, char **argv){
     //         sleep(1);
     //     }
     // }
+    sleep (5);
     printf("Done\n");
     return 0;
 }
