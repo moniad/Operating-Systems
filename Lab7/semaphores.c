@@ -1,34 +1,24 @@
 #include <stdio.h> // perror()
 #include <sys/types.h> // semctl(), ftok()
 #include <sys/ipc.h> // semctl(), ftok()
-#include <sys/msg.h> // msgget()
-#include <sys/stat.h> // chmod()
 #include <stdlib.h> // malloc(), getenv()
 #include <string.h>
 #include <signal.h>
 #include <unistd.h> // sleep()
-#include <ctype.h> // isdigit()
 #include <errno.h>
 #include <stdio.h> // fgets()
 #include <wait.h>
-
 #include <sys/sem.h> // semctl()
 #include <sys/shm.h> // shared memory ops
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <pwd.h>
-#include <fcntl.h>
-#include <limits.h>
+#include <fcntl.h> // S_IWUSR itd.
 
 #define PROJ_ID 7
 #define SMH_SIZE 100
-#define MAX_SHMDATA_SIZE 100
 
 const char pathname[] = "/keypath";
 struct sembuf take, give;
 int shmid, semid;
 key_t semkey, shmkey;
-// void *shmdata;
 char *shmdata;
 pid_t child;
 
@@ -82,7 +72,7 @@ int main(int argc, char **argv){
     for(int i=0; i<3; i++){
         if(child != 0) {
             if(semop(semid, &take, 1) < 0) die_errno("semop take in parent");
-            if(!fgets(shmdata, MAX_SHMDATA_SIZE, stdin)) die_errno("child, gets()");
+            if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
             printf("parent - taken: i = %d, shmdata = %s\n", i, shmdata);
               strncpy(shmdata, "Parent\n", SMH_SIZE);
           //   *shmdata = 10;
@@ -92,7 +82,7 @@ int main(int argc, char **argv){
         else {
             if(semop(semid, &take, 1) < 0) die_errno("semop take in child");
           //   *shmdata = 8;
-            if(!fgets(shmdata, MAX_SHMDATA_SIZE, stdin)) die_errno("child, gets()");
+            if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
             printf("child - taken: i = %d, shmdata = %s\n", i, shmdata);
             strncpy(shmdata, "Child\n", SMH_SIZE);
             if(semop(semid, &give, 1) < 0) die_errno("semop give in child");
