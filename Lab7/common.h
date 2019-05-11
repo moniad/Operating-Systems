@@ -7,7 +7,7 @@
 #define PROJ_ID 7
 #define SMH_SIZE 100
 
-char *shmdata; // shared memory
+char *belt; // shared memory
 
 /* but what should shared memory look like??? */
 

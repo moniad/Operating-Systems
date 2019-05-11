@@ -14,7 +14,7 @@
 #include <fcntl.h> // S_IWUSR
 #include "common.h"
 
-#define MAX_CYCLE_DIGITS 4
+#define MAX_CYCLE_AND_WEIGHT_DIGITS 4
 
 // const char pathname[] = "/keypath";
 struct sembuf take, give;
@@ -22,28 +22,41 @@ pid_t *workers;
 pid_t *loaders_pids;
 int workersCount;
 char **cycles;
+char **workers_pckg_weight;
 pid_t pid;
 
 void parse_input(int argc, char **argv){
     if(argc != 2) die_errno("Give me the number of workers\n");
     workersCount = (int) strtol(argv[1], NULL, 10);
     cycles = malloc(workersCount * sizeof(char *));
-    for(int i = 0; i < workersCount; i++)
-        cycles[i] = malloc(MAX_CYCLE_DIGITS * sizeof(char));
-    for(int i = 0; i < workersCount; i++)
+    workers_pckg_weight = malloc(workersCount * sizeof(char *));
+    for(int i = 0; i < workersCount; i++){
+        cycles[i] = malloc(MAX_CYCLE_AND_WEIGHT_DIGITS * sizeof(char));
+        workers_pckg_weight[i] = malloc(MAX_CYCLE_AND_WEIGHT_DIGITS * sizeof(char));
+    }
+    for(int i = 0; i < workersCount; i++){
+        scanf("%s", workers_pckg_weight[i]);
+
+        /*the case when cycles is not given, doesn't work... I wanted to read a newline, but I cannot :< */
+        // if(fgets(cycles[i], 4, stdin) == NULL) {
+        //     printf("HERE\n");
+        //     sprintf(cycles[i], "%d", -1);
+        // }
         scanf("%s", cycles[i]);
+        // if(strcmp(cycles[i], "\n") == 0) sprintf(cycles[i], "%d", -1);
+    }
     // printf("%d\n", workersCount);
-    // for(int i = 0; i < workersCount; i++)
-    //     printf("%s ", cycles[i]);
+    for(int i = 0; i < workersCount; i++)
+        printf("weight: %s, cycles: %s\n", workers_pckg_weight[i], cycles[i]);
 }
 
 void create_loader_processes(){
     for(int i=0; i<workersCount; i++){
         if((workers[i] = fork()) < 0) die_errno("fork()");
         if(workers[i] == 0){
-            printf("cycles[i] : %s\n", cycles[i]);
+            printf("weights[i]: %s, cycles[i] : %s\n", workers_pckg_weight[i], cycles[i]);
             sleep(1);
-            execl("loader.o", cycles[i], NULL);
+            execl("loader.o", workers_pckg_weight[i], cycles[i], NULL);
         }
         else loaders_pids[i] = workers[i];
     }

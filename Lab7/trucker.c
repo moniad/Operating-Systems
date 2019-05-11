@@ -13,6 +13,7 @@
 #include <sys/stat.h> // S_IWUSR itd.
 #include <fcntl.h> // S_IWUSR
 #include <signal.h> // SIGINT handling
+#include <time.h>
 #include "common.h"
 
 // const char pathname[] = "/keypath";
@@ -47,13 +48,13 @@ void create_and_init_shm(){
     printf("creating sem\n");
     if((shmkey = ftok(getenv("HOME"), PROJ_ID+1)) < 0) die_errno("shmkey ftok");
     if((shmid = shmget(shmkey, SMH_SIZE, IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
-    if((shmdata = shmat(shmid, NULL, 0)) == (char *) (-1)) die_errno("shmat()");
+    if((belt = shmat(shmid, NULL, 0)) == (char *) (-1)) die_errno("shmat()");
 }
 
 void rmv_sem_and_detach_shm(){
     // if(wait(NULL) < 0) die_errno("wait");
     printf("removing sem and shm\n");
-    if(shmdt(shmdata) < 0) {
+    if(shmdt(belt) < 0) {
         // printf("errno: %d\n", errno);
         die_errno("shmdt");
     }
@@ -81,29 +82,34 @@ int main(int argc, char **argv){
     create_and_init_semaphore();
     create_and_init_shm();
 
-    // check if the size of shared memory is correct 
+    // i don't like the create_and_init_semaphore function()... wymusza wartości operacji na semaforze
+    // check if the size of shared memory is correct
+    // todo in SIGINThandler: zablokować semafor taśmy transportowej dla pracowników, załadować to, co pozostało na taśmie
+    // W przypadku uruchomienia programu loader przed uruchomieniem truckera, powinien zostać wypisany odpowiedni komunikat 
+    //      (obsłużony błąd spowodowany brakiem dostępu do nieutworzonej pamięci)
     // algorytm obsługi taśmy + warunek na masę paczek, pakowanie do ciężarówki
     // wypisywanie komunikatów u truckera i loaderów
+    // in loaders_manager.c: the case when cycles is not given, doesn't work...
 
     // child = fork();
     // if(child != 0) 
-    // // *shmdata = 0;
+    // // *belt = 0;
     // for(int i=0; i<3; i++){
     //     if(child != 0) {
     //         if(semop(semid, &take, 1) < 0) die_errno("semop take in parent");
-    //         if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
-    //         printf("parent - taken: i = %d, shmdata = %s\n", i, shmdata);
-    //           strncpy(shmdata, "Parent\n", SMH_SIZE);
-    //       //   *shmdata = 10;
+    //         if(!fgets(belt, SMH_SIZE, stdin)) die_errno("child, gets()");
+    //         printf("parent - taken: i = %d, belt = %s\n", i, belt);
+    //           strncpy(belt, "Parent\n", SMH_SIZE);
+    //       //   *belt = 10;
     //         if(semop(semid, &give, 1) < 0) die_errno("semop give in parent");
     //         sleep(1);
     //     }
     //     else {
     //         if(semop(semid, &take, 1) < 0) die_errno("semop take in child");
-    //       //   *shmdata = 8;
-    //         if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
-    //         printf("child - taken: i = %d, shmdata = %s\n", i, shmdata);
-    //         strncpy(shmdata, "Child\n", SMH_SIZE);
+    //       //   *belt = 8;
+    //         if(!fgets(belt, SMH_SIZE, stdin)) die_errno("child, gets()");
+    //         printf("child - taken: i = %d, belt = %s\n", i, belt);
+    //         strncpy(belt, "Child\n", SMH_SIZE);
     //         if(semop(semid, &give, 1) < 0) die_errno("semop give in child");
     //         sleep(1);
     //     }

@@ -17,12 +17,15 @@
 // const char pathname[] = "/keypath";
 struct sembuf take, give;
 pid_t pid;
+int pckg_weight;
 int cycles = -1; // C, max packages number per worker!
 
 void parse_input(int argc, char **argv){
-    if(argc == 1) cycles = (int) strtol(argv[0], NULL, 10);
+    if(argc == 0) die_errno("Not enough args passed to loader! Pass N and (maybe not) C!");
+    pckg_weight = (int) strtol(argv[0], NULL, 10);
+    if(argc == 2) cycles = (int) strtol(argv[1], NULL, 10);
     printf("Yaya, loader!!! ");
-    printf("Cycles no: %d\n", cycles);
+    printf("Weight: %d, Cycles no: %d\n", pckg_weight, cycles);
 }
 
 int main(int argc, char **argv){
