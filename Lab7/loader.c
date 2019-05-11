@@ -18,7 +18,7 @@
 struct sembuf take, give;
 pid_t pid;
 int pckg_weight;
-int cycles = -1; // C, max packages number per worker!
+int cycles = -1; // C, max number of packages the worker will serve
 
 void parse_input(int argc, char **argv){
     if(argc == 0) die_errno("Not enough args passed to loader! Pass N and (maybe not) C!");
