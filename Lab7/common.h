@@ -10,6 +10,12 @@
 struct sembuf take, give;
 char *belt; // shared memory
 
+typedef struct package{
+    pid_t workers_pid;
+    int weight;
+    
+} package;
+
 /* but what should shared memory look like??? */
 
 void die_errno(char *msg){

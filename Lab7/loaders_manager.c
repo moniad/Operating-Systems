@@ -71,11 +71,26 @@ void print_loaders_pids(){
     }
 }
 
-int main(int argc, char **argv){
-    parse_input(argc, argv);
-    pid = getpid();
+void free_memory(){
+    free(workers);
+    free(loaders_pids);
+    for(int i = 0; i < workersCount; i++){
+        free(cycles[i]);
+        free(workers_pckg_weight[i]);
+    }
+    free(cycles);
+    free(workers_pckg_weight);
+}
+
+void init_memory(){
     workers = malloc(workersCount * sizeof(pid_t));
     loaders_pids = malloc(workersCount * sizeof(pid_t));
+}
+
+int main(int argc, char **argv){
+    init_memory();
+    parse_input(argc, argv);
+    pid = getpid();
     // *shmdata = 0;
     create_loader_processes();
     print_loaders_pids();
@@ -109,5 +124,6 @@ int main(int argc, char **argv){
     //         if(wait(NULL) < 0) die_errno("wait()");
     //         printf("%d\n", i);
     //     }
+    free_memory();
     return 0;
 }
