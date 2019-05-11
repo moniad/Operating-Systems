@@ -17,7 +17,6 @@
 #include "common.h"
 
 // const char pathname[] = "/keypath";
-struct sembuf take, give;
 int shmid, semid;
 key_t semkey, shmkey;
 pid_t child;
@@ -38,7 +37,7 @@ void parse_input(int argc, char **argv){
 void create_and_init_semaphore(){
     if((semkey = ftok(getenv("HOME"), PROJ_ID)) < 0) die_errno("ftok");
     if((semid = semget(semkey, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget");
-    take.sem_num = give.sem_num = 0; //initialization
+    take.sem_num = give.sem_num = 0; // no_of_semaphore <=> index in the sem_base table
     take.sem_op = 1;
     give.sem_op = -1;
     take.sem_flg = give.sem_flg = 0;

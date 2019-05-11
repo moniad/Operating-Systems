@@ -7,6 +7,7 @@
 #define PROJ_ID 7
 #define SMH_SIZE 100
 
+struct sembuf take, give;
 char *belt; // shared memory
 
 /* but what should shared memory look like??? */
