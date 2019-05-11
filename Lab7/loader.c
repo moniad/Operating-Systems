@@ -15,7 +15,6 @@
 #include "common.h"
 
 // const char pathname[] = "/keypath";
-struct sembuf take, give;
 pid_t pid;
 int pckg_weight;
 int cycles = -1; // C, max number of packages the worker will serve

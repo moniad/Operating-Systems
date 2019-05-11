@@ -17,7 +17,6 @@
 #define MAX_CYCLE_AND_WEIGHT_DIGITS 4
 
 // const char pathname[] = "/keypath";
-struct sembuf take, give;
 pid_t *workers;
 pid_t *loaders_pids;
 int workersCount;

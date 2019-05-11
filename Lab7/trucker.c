@@ -74,6 +74,15 @@ void SIGINThandler(int signum){
     printf("Trucker.c: Received SIGINT. Quiting...");
     exit(0);
 }
+
+char *get_date_time(){ // datetime is statically allocated, but it's not a problem
+    time_t t = time(NULL);
+    struct tm tm = *localtime(&t);
+    if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
+        die_errno("strftime");
+    return datetime;
+}
+
 int main(int argc, char **argv){
     parse_input(argc, argv);
     set_signal_handling();
@@ -81,6 +90,9 @@ int main(int argc, char **argv){
     create_and_init_semaphore();
     create_and_init_shm();
 
+    printf("%s\n", get_date_time());
+    
+    // todo: count the difference between current time and time in the package
     // i don't like the create_and_init_semaphore function()... wymusza wartości operacji na semaforze
     // check if the size of shared memory is correct
     // todo in SIGINThandler: zablokować semafor taśmy transportowej dla pracowników, załadować to, co pozostało na taśmie
