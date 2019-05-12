@@ -97,7 +97,7 @@ int main(int argc, char **argv){
                 package p = create_package();
                 belt[0] = p;
                 print_package_details(p);
-                printf("Pracownik PID = %d załadował paczkę o masie %d w chwili: %s\n", pid, pckg_weight, get_date_time());
+                printf("Jestem pracownik o PID = %d i załadowałem paczkę o masie %d w chwili: %s\n", pid, pckg_weight, get_date_time());
                 flag = 0;
                 give_back_belt_op();
             }
@@ -132,14 +132,6 @@ int main(int argc, char **argv){
         }
     }
     */
-    // i++;
-    // printf("Done\n");
-    // for(int j = 0; j < workersCount; j++)
-    //     if(getpid() == workers[j]) break;
-    //     else{
-    //         if(wait(NULL) < 0) die_errno("wait()");
-    //         printf("%d\n", i);
-    //     }
     sleep(15);
     if(shmdt(belt) < 0) die_errno("shmdt");
     return 0;

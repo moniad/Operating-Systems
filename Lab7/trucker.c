@@ -52,7 +52,7 @@ void create_and_init_semaphores(){
         int val;
     } arg;
 
-    arg.val = max_pckgsWeight_on_the_belt;
+    arg.val = max_pckgsWeight_on_the_belt; // free places in terms of weight units
     if(semctl(sem_belt_weight_id, 0, SETVAL, arg) < 0) die_errno("semctl belt_weight()");
     arg.val = 1;
     if(semctl(sem_belt_operation_id, 0, SETVAL, arg) < 0) die_errno("semctl belt_operation()");
@@ -167,7 +167,7 @@ int main(int argc, char **argv){
     printf("%s\n", get_date_time());
     
     test();
-    
+
     /*
     // TO NALEZY CIAGLE NA NOWO USTAWIAC!!!!!!!!!!!!!!!!
     // set_struct_sembuf(sem_belt_weight_op, 0, waga_zdjetej_paczki, 0);
@@ -177,7 +177,7 @@ int main(int argc, char **argv){
     // todo: count the difference between current time and time in the package
     // todo in SIGINThandler: zablokować semafor taśmy transportowej dla pracowników, załadować to, co pozostało na taśmie
     // algorytm obsługi taśmy + warunek na masę paczek, pakowanie do ciężarówki
-    // wypisywanie komunikatów u truckera i loaderów
+    // wypisywanie u truckera, ze czeka na paczke
     // in loaders_manager.c: the case when cycles is not given, doesn't work...
 
     // child = fork();
