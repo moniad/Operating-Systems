@@ -18,6 +18,7 @@
 pid_t pid;
 int pckg_weight;
 int cycles = -1; // C, max number of packages the worker will serve
+int flag;
 
 void parse_input(int argc, char **argv){
     if(argc == 0) die_errno("Not enough args passed to loader! Pass N and (maybe not) C!");
@@ -27,11 +28,54 @@ void parse_input(int argc, char **argv){
     printf("Weight: %d, Cycles no: %d\n", pckg_weight, cycles);
 }
 
+void give_back_belt_op(){
+    if(semop(sem_belt_operation_id, &sem_belt_operation_op_give, 1) < 0) die_errno("sem belt_op_give");
+}
+
+void get_sem_IDs(){
+    if((sem_message_key = ftok(getenv("HOME"), PROJ_ID)) < 0) die_errno("ftok sem_msg");
+    if((sem_belt_operation_key = ftok(getenv("HOME"), PROJ_ID+1)) < 0) die_errno("ftok sem_msg");
+    if((sem_belt_weight_key = ftok(getenv("HOME"), PROJ_ID+2)) < 0) die_errno("ftok sem_msg");
+
+    // get existing IDs -> nsems = 0
+    if(((sem_message_id = semget(sem_message_key, 0, 0)) < 0) ||
+       ((sem_belt_operation_id = semget(sem_belt_operation_key, 0, 0)) < 0) || 
+       (sem_belt_weight_id = semget(sem_belt_weight_key, 0, 0)) < 0)
+       die_errno("Memory not initialized! Run trucker.c first!");
+}
+
 int main(int argc, char **argv){
     parse_input(argc, argv);
     pid = getpid();
-   
-    // while cycles != 0 <- it can be -1 if no conditions
+    get_sem_IDs();
+    set_all_structs_sembuf();
+    set_struct_sembuf(sem_belt_weight_op, 0, pckg_weight, IPC_NOWAIT);
+
+    while (cycles-- != 0){ // cause it can be equal to -1 if not specified
+        flag = 1;
+        printf("PID %d: Czekam na mozliwosc \"zgłoszenia się do truckera\"\n", pid);
+        printf("sem IDs: %d, %d, %d\n", sem_belt_operation_id, sem_belt_weight_id, sem_message_id);
+        if(semop(sem_message_id, &sem_message_op_take, 1) < 0) die_errno("sem msg take");
+    
+        while(flag){
+            printf("PID %d: Czekam na zwolnienie taśmy\n", pid);
+            if(semop(sem_belt_operation_id, &sem_belt_operation_op_take, 1) < 0) die_errno("semop belt_op_take");
+            if(semop(sem_belt_weight_id, &sem_belt_weight_op, 1)) { // OK
+                // poloz paczke
+                printf("Pracownik PID = %d załadował paczkę o masie %d w chwili: %s\n", pid, pckg_weight, get_date_time());
+                flag = 0;
+                give_back_belt_op();
+            }
+            else if(errno == EAGAIN){
+                printf("Errno, PID %d: Czekam na zwolnienie taśmy\n", pid);
+                give_back_belt_op();
+                continue;
+            }
+            else die_errno("semop belt_weight");
+        }
+        if(semop(sem_message_id, &sem_message_op_give, 1) < 0) die_errno("semop msg give");
+    }
+
     /*
         if(child != 0) {
             if(semop(semid, &take, 1) < 0) die_errno("semop take in parent");

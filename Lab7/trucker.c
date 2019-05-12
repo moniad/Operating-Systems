@@ -13,12 +13,9 @@
 #include <sys/stat.h> // S_IWUSR itd.
 #include <fcntl.h> // S_IWUSR
 #include <signal.h> // SIGINT handling
-#include <time.h>
 #include "common.h"
 
 // const char pathname[] = "/keypath";
-int shmid, semid;
-key_t semkey, shmkey;
 pid_t child;
 int capacity; // X
 int max_pckgsCount_on_the_belt; // K
@@ -34,31 +31,47 @@ void parse_input(int argc, char **argv){
     // printf("%d, %d, %d\n", capacity, max_pckgsCount_on_the_belt, max_pckgsWeight_on_the_belt);
 }
 
-void create_and_init_semaphore(){
-    if((semkey = ftok(getenv("HOME"), PROJ_ID)) < 0) die_errno("ftok");
-    if((semid = semget(semkey, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget");
-    take.sem_num = give.sem_num = 0; // no_of_semaphore <=> index in the sem_base table
-    take.sem_op = 1;
-    give.sem_op = -1;
-    take.sem_flg = give.sem_flg = 0;
+void create_and_init_semaphores(){
+    // generate keys
+    if((sem_message_key = ftok(getenv("HOME"), PROJ_ID)) < 0) die_errno("ftok sem_msg");
+    if((sem_belt_operation_key = ftok(getenv("HOME"), PROJ_ID+1)) < 0) die_errno("ftok sem_msg");
+    if((sem_belt_weight_key = ftok(getenv("HOME"), PROJ_ID+2)) < 0) die_errno("ftok sem_msg");
+
+    // get IDs
+    if((sem_message_id = semget(sem_message_key, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget sem_mesg");
+    if((sem_belt_operation_id = semget(sem_belt_operation_key, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget sem_belt_operation");
+    if((sem_belt_weight_id = semget(sem_belt_weight_key, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget sem_belt_weight");
+
+    set_all_structs_sembuf();
+
+    // setting initial values
+    union semun{ 
+        int val;
+    } arg;
+
+    arg.val = max_pckgsWeight_on_the_belt;
+    if(semctl(sem_belt_weight_id, 0, SETVAL, arg) < 0) die_errno("semctl belt_weight()");
+    arg.val = 1;
+    if(semctl(sem_belt_operation_id, 0, SETVAL, arg) < 0) die_errno("semctl belt_operation()");
+    if(semctl(sem_message_id, 0, SETVAL, arg) < 0) die_errno("semctl message()");
 }
 
 void create_and_init_shm(){
     printf("creating sem\n");
-    if((shmkey = ftok(getenv("HOME"), PROJ_ID+1)) < 0) die_errno("shmkey ftok");
-    if((shmid = shmget(shmkey, SMH_SIZE, IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
-    if((belt = shmat(shmid, NULL, 0)) == (char *) (-1)) die_errno("shmat()");
+    if((belt_key = ftok(getenv("HOME"), PROJ_ID-1)) < 0) die_errno("belt_key ftok");
+    if((belt_id = shmget(belt_key, SMH_SIZE, IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
+    /* is it OK??????? */
+    if((belt = shmat(belt_id, NULL, 0)) == (package *) (-1)) die_errno("shmat()");
 }
 
 void rmv_sem_and_detach_shm(){
     // if(wait(NULL) < 0) die_errno("wait");
     printf("removing sem and shm\n");
-    if(shmdt(belt) < 0) {
-        // printf("errno: %d\n", errno);
-        die_errno("shmdt");
-    }
-    if(semctl(semid, 1, IPC_RMID) < 0) die_errno("removing semaphore");
-    if(shmctl(shmid, IPC_RMID, NULL) < 0) die_errno("removing shared memory");
+    if(shmdt(belt) < 0) die_errno("shmdt");
+    if(semctl(sem_message_id, 0, IPC_RMID) < 0) die_errno("removing sem_message");
+    if(semctl(sem_belt_operation_id, 0, IPC_RMID) < 0) die_errno("removing sem_belt_op");
+    if(semctl(sem_belt_weight_id, 0, IPC_RMID) < 0) die_errno("removing sem_belt_weight");
+    if(shmctl(belt_id, IPC_RMID, NULL) < 0) die_errno("removing shared memory");
     // system("ipcrm -a");
 }
 
@@ -75,29 +88,23 @@ void SIGINThandler(int signum){
     exit(0);
 }
 
-char *get_date_time(){ // datetime is statically allocated, but it's not a problem
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
-        die_errno("strftime");
-    return datetime;
-}
-
 int main(int argc, char **argv){
     parse_input(argc, argv);
     set_signal_handling();
     atexit(rmv_sem_and_detach_shm);
-    create_and_init_semaphore();
+    create_and_init_semaphores();
     create_and_init_shm();
 
     printf("%s\n", get_date_time());
     
+    /*
+    // TO NALEZY CIAGLE NA NOWO USTAWIAC!!!!!!!!!!!!!!!!
+    // set_struct_sembuf(sem_belt_weight_op, 0, waga_zdjetej_paczki, 0);
+    chyba z IPC_NOWAIT, wtedy pisze: "Czekam na załadowanie paczki"
+    */
+
     // todo: count the difference between current time and time in the package
-    // i don't like the create_and_init_semaphore function()... wymusza wartości operacji na semaforze
-    // check if the size of shared memory is correct
     // todo in SIGINThandler: zablokować semafor taśmy transportowej dla pracowników, załadować to, co pozostało na taśmie
-    // W przypadku uruchomienia programu loader przed uruchomieniem truckera, powinien zostać wypisany odpowiedni komunikat 
-    //      (obsłużony błąd spowodowany brakiem dostępu do nieutworzonej pamięci)
     // algorytm obsługi taśmy + warunek na masę paczek, pakowanie do ciężarówki
     // wypisywanie komunikatów u truckera i loaderów
     // in loaders_manager.c: the case when cycles is not given, doesn't work...
@@ -125,7 +132,7 @@ int main(int argc, char **argv){
     //         sleep(1);
     //     }
     // }
-    sleep (5);
+    sleep (15);
     printf("Done\n");
     return 0;
 }

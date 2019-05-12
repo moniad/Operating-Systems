@@ -93,28 +93,7 @@ int main(int argc, char **argv){
     // *shmdata = 0;
     create_loader_processes();
     print_loaders_pids();
-    // while cycles != 0 <- it can be -1 if no conditions
-    /*
-        if(child != 0) {
-            if(semop(semid, &take, 1) < 0) die_errno("semop take in parent");
-            if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
-            printf("parent - taken: i = %d, shmdata = %s\n", i, shmdata);
-              strncpy(shmdata, "Parent\n", SMH_SIZE);
-          //   *shmdata = 10;
-            if(semop(semid, &give, 1) < 0) die_errno("semop give in parent");
-            sleep(1);
-        }
-        else {
-            if(semop(semid, &take, 1) < 0) die_errno("semop take in child");
-          //   *shmdata = 8;
-            if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
-            printf("child - taken: i = %d, shmdata = %s\n", i, shmdata);
-            strncpy(shmdata, "Child\n", SMH_SIZE);
-            if(semop(semid, &give, 1) < 0) die_errno("semop give in child");
-            sleep(1);
-        }
-    }
-    */
+    
     // i++;
     // printf("Done\n");
     // for(int j = 0; j < workersCount; j++)
