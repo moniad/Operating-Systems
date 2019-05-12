@@ -122,15 +122,7 @@ void move_one_pckg_to_truck(package p){
     }
 } 
 
-int main(int argc, char **argv){
-    parse_input(argc, argv);
-    set_signal_handling();
-    atexit(rmv_sem_and_detach_shm);
-    create_and_init_semaphores();
-    create_and_init_shm();
-    cur_pckg_no_in_truck = 0;
-
-    printf("%s\n", get_date_time());
+void test(){
     // testing
     package p;
     p.weight = 234;
@@ -162,6 +154,20 @@ int main(int argc, char **argv){
     move_one_pckg_to_truck(p);
     move_one_pckg_to_truck(p1);
 
+}
+
+int main(int argc, char **argv){
+    parse_input(argc, argv);
+    set_signal_handling();
+    atexit(rmv_sem_and_detach_shm);
+    create_and_init_semaphores();
+    create_and_init_shm();
+    cur_pckg_no_in_truck = 0;
+
+    printf("%s\n", get_date_time());
+    
+    test();
+    
     /*
     // TO NALEZY CIAGLE NA NOWO USTAWIAC!!!!!!!!!!!!!!!!
     // set_struct_sembuf(sem_belt_weight_op, 0, waga_zdjetej_paczki, 0);
