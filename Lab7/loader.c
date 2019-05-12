@@ -59,10 +59,6 @@ package create_package(){
     return p;
 }
 
-void print_package_details(package p){
-    printf("Package: PID %d, %d, %s\n", p.workers_pid, p.weight, p.time_stamp);
-}
-
 void init_shm(){
     printf("init shm\n");
     if((belt_key = ftok(getenv("HOME"), PROJ_ID-1)) < 0) die_errno("belt_key ftok");
@@ -82,14 +78,14 @@ int main(int argc, char **argv){
         flag = 1;
         printf("PID %d: Czekam na mozliwosc \"zgłoszenia się do truckera\"\n", pid);
         printf("sem IDs: %d, %d, %d\n", sem_belt_operation_id, sem_belt_weight_id, sem_message_id);
-        /* */
+        /* works
             package p = create_package();
             if(belt == NULL) printf("BUUUUUUUU\n");
             // if(belt[0] == NULL) printf("ahaaaaaaaa\n");
             belt[0] = p;
             print_package_details(p);
             printf("Pracownik PID = %d załadował paczkę o masie %d w chwili: %s\n", pid, pckg_weight, get_date_time());
-            
+        */
 
         if(semop(sem_message_id, &sem_message_op_take, 1) < 0) die_errno("sem msg take");
     

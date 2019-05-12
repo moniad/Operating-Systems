@@ -1,6 +1,6 @@
 all: semaphores.o loader.o loaders_manager.o trucker.o
 	make clean
-	# make semaphores.o
+	make semaphores.o
 	make loader.o
 	make loaders_manager.o
 	make trucker.o

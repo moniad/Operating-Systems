@@ -16,6 +16,7 @@ typedef struct package{
     char time_stamp[DATE_LENGTH];
 } package;
 
+const char format[] = "%d-%m-%Y %H:%M:%S";
 key_t belt_key, sem_message_key, sem_belt_operation_key, sem_belt_weight_key;
 int belt_id, sem_message_id, sem_belt_operation_id, sem_belt_weight_id;
 struct sembuf sem_message_op_take, sem_message_op_give;
@@ -51,9 +52,13 @@ void set_all_structs_sembuf(){
 char *get_date_time(){ // datetime is statically allocated, but it's not a problem
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-    if(strftime(datetime, DATE_LENGTH, "%d-%m-%Y %H:%M:%S", &tm) == 0)
-        die_errno("strftime");
+    if(strftime(datetime, DATE_LENGTH, format, &tm) < 0) die_errno("strptime");
+    printf("DT: %s\n", datetime);
     return datetime;
+}
+
+void print_package_details(package p){
+    printf("Package: PID %d, %d, %s\n", p.workers_pid, p.weight, p.time_stamp);
 }
 
 #endif
