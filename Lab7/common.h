@@ -7,7 +7,7 @@
 #include <time.h>
 
 #define PROJ_ID 7
-#define SMH_SIZE 100
+#define SHM_SIZE(K) (K*sizeof(struct package))
 #define DATE_LENGTH 30
 
 typedef struct package{
@@ -24,7 +24,6 @@ struct sembuf sem_belt_weight_op;
 package *belt; // shared memory
 char datetime[DATE_LENGTH];
 
-/* but what should shared memory look like??? */
 // mam K miejsc w belt[]. w belt[i] trzymam paczkę i przesuwam wskaźnikiem (tam, gdzie wskaźnik,
 // odbieram paczkę) od końca 
 // do początku i wracam na koniec z powrotem (pętla). <- symulacja ruchu przesuwającego taśmę

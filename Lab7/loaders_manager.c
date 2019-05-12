@@ -24,8 +24,11 @@ char **cycles;
 char **workers_pckg_weight;
 pid_t pid;
 
+char max_pckgsCount_on_the_belt[MAX_CYCLE_AND_WEIGHT_DIGITS]; // added
+
 void parse_input(int argc, char **argv){
-    if(argc != 2) die_errno("Give me the number of workers\n");
+    // if(argc != 2) die_errno("Give me the number of workers\n");
+    if(argc != 3) die_errno("Give me the number of workers and max_pckgs_count\n"); // added
     workersCount = (int) strtol(argv[1], NULL, 10);
     cycles = malloc(workersCount * sizeof(char *));
     workers_pckg_weight = malloc(workersCount * sizeof(char *));
@@ -55,7 +58,7 @@ void create_loader_processes(){
         if(workers[i] == 0){
             printf("weights[i]: %s, cycles[i] : %s\n", workers_pckg_weight[i], cycles[i]);
             sleep(1);
-            execl("loader.o", workers_pckg_weight[i], cycles[i], NULL);
+            execl("loader.o", workers_pckg_weight[i], cycles[i], max_pckgsCount_on_the_belt, NULL);
         }
         else loaders_pids[i] = workers[i];
     }

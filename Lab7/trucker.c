@@ -57,11 +57,10 @@ void create_and_init_semaphores(){
 }
 
 void create_and_init_shm(){
-    printf("creating sem\n");
+    printf("creating shm\n");
     if((belt_key = ftok(getenv("HOME"), PROJ_ID-1)) < 0) die_errno("belt_key ftok");
-    if((belt_id = shmget(belt_key, SMH_SIZE, IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
-    /* is it OK??????? */
-    if((belt = shmat(belt_id, NULL, 0)) == (package *) (-1)) die_errno("shmat()");
+    if((belt_id = shmget(belt_key, SHM_SIZE(max_pckgsCount_on_the_belt), IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
+    if((belt = (package *) shmat(belt_id, NULL, 0)) < 0) die_errno("shmat()");
 }
 
 void rmv_sem_and_detach_shm(){
@@ -96,6 +95,14 @@ int main(int argc, char **argv){
     create_and_init_shm();
 
     printf("%s\n", get_date_time());
+    package p;
+    p.weight = 234;
+    p.workers_pid = 500;
+    strcpy(p.time_stamp, get_date_time());
+    sleep(15);
+    printf("ended waiting\n");
+    // belt[0] = p;
+    printf("BELT[0]: %d, %d, %s\n", belt[0].workers_pid, belt[0].weight, belt[0].time_stamp);
     
     /*
     // TO NALEZY CIAGLE NA NOWO USTAWIAC!!!!!!!!!!!!!!!!
@@ -132,7 +139,7 @@ int main(int argc, char **argv){
     //         sleep(1);
     //     }
     // }
-    sleep (15);
+    // sleep (2);
     printf("Done\n");
     return 0;
 }
