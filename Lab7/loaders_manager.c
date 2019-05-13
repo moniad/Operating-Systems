@@ -30,6 +30,7 @@ void parse_input(int argc, char **argv){
     // if(argc != 2) die_errno("Give me the number of workers\n");
     if(argc != 3) die_errno("Give me the number of workers and max_pckgs_count\n"); // added
     workersCount = (int) strtol(argv[1], NULL, 10);
+    strcpy(max_pckgsCount_on_the_belt, argv[2]);
     cycles = malloc(workersCount * sizeof(char *));
     workers_pckg_weight = malloc(workersCount * sizeof(char *));
     for(int i = 0; i < workersCount; i++){
@@ -50,6 +51,7 @@ void parse_input(int argc, char **argv){
     // printf("%d\n", workersCount);
     for(int i = 0; i < workersCount; i++)
         printf("weight: %s, cycles: %s\n", workers_pckg_weight[i], cycles[i]);
+    printf("max pckgs count: %s\n", max_pckgsCount_on_the_belt);
 }
 
 void create_loader_processes(){

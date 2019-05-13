@@ -30,7 +30,7 @@ void parse_input(int argc, char **argv){
         max_pckgsCount_on_the_belt = (int) strtol(argv[2], NULL, 10);
     }
     printf("Yaya, loader!!! ");
-    printf("Weight: %d, Cycles no: %d\n", pckg_weight, cycles);
+    printf("Weight: %d, Cycles no: %d, max_pckgsCount: %d\n", pckg_weight, cycles, max_pckgsCount_on_the_belt);
 }
 
 void give_back_belt_op(){
@@ -62,7 +62,8 @@ package create_package(){
 void init_shm(){
     printf("init shm\n");
     if((belt_key = ftok(getenv("HOME"), PROJ_ID-1)) < 0) die_errno("belt_key ftok");
-    if((belt_id = shmget(belt_key, SHM_SIZE(max_pckgsCount_on_the_belt), 0666)) < 0) die_errno("shmget()");
+    printf("SHM_SIZE: %lu\n", SHM_SIZE(max_pckgsCount_on_the_belt));
+    if((belt_id = shmget(belt_key, (size_t)SHM_SIZE(max_pckgsCount_on_the_belt), 0666)) < 0) die_errno("shmget()");
     printf("belt_id: %d, SHM_SIZE(K): %d\n", belt_id, (int) SHM_SIZE(max_pckgsCount_on_the_belt));
     if((belt = (package *) shmat(belt_id, NULL, 0)) < 0) die_errno("shmat()");
 }
@@ -77,7 +78,7 @@ int main(int argc, char **argv){
     while (cycles-- != 0){ // cause it can be equal to -1 if not specified
         flag = 1;
         printf("PID %d: Czekam na mozliwosc \"zgłoszenia się do truckera\"\n", pid);
-        printf("sem IDs: %d, %d, %d\n", sem_belt_operation_id, sem_belt_weight_id, sem_message_id);
+        // printf("sem IDs: %d, %d, %d\n", sem_belt_operation_id, sem_belt_weight_id, sem_message_id);
         /* works
             package p = create_package();
             if(belt == NULL) printf("BUUUUUUUU\n");
@@ -87,8 +88,14 @@ int main(int argc, char **argv){
             printf("Pracownik PID = %d załadował paczkę o masie %d w chwili: %s\n", pid, pckg_weight, get_date_time());
         */
 
+        union semun{
+            int val;
+        } arg;
+        
+        if((arg.val = semctl(sem_belt_operation_id, 0, GETVAL, arg)) < 0) die_errno("semctl belt_operation()");
+        printf("WHY DONT YOU TAKE THIS SEMAPHORE??????????? arg.val: %d\n", arg.val);
         if(semop(sem_message_id, &sem_message_op_take, 1) < 0) die_errno("sem msg take");
-    
+        printf("NOM!");
         while(flag){
             printf("PID %d: Czekam na zwolnienie taśmy\n", pid);
             if(semop(sem_belt_operation_id, &sem_belt_operation_op_take, 1) < 0) die_errno("semop belt_op_take");
@@ -109,6 +116,7 @@ int main(int argc, char **argv){
             else die_errno("semop belt_weight");
         }
         if(semop(sem_message_id, &sem_message_op_give, 1) < 0) die_errno("semop msg give");
+        sleep(10);
     }
 
     /*
@@ -132,7 +140,7 @@ int main(int argc, char **argv){
         }
     }
     */
-    sleep(15);
     if(shmdt(belt) < 0) die_errno("shmdt");
+    printf("Loader: finished\n");
     return 0;
 }

@@ -15,6 +15,9 @@
 #include <signal.h> // SIGINT handling
 #define _XOPEN_SOURCE // for strptime()
 #include <time.h> // strptime()
+#include <sys/time.h> // gettimeofday()
+#include <stdint.h> // uint64_t
+#include <inttypes.h> // PRIu64
 #include "common.h"
 
 // const char pathname[] = "/keypath";
@@ -23,6 +26,9 @@ int capacity; // X
 int max_pckgsCount_on_the_belt; // K
 int max_pckgsWeight_on_the_belt; // M
 int cur_pckg_no_in_truck;
+const char empty_pckg_text[] = "null package";
+int last_pckg_index;
+
 struct sigaction act; // SIGINT handling
 void SIGINThandler(int signum);
 
@@ -90,14 +96,6 @@ void SIGINThandler(int signum){
     exit(0);
 }
 
-void move_belt_one_pos_forward(){
-    for(int i = max_pckgsCount_on_the_belt-1; i > 0; i--)
-        belt[i] = belt[i-1];
-    belt[0].workers_pid = -1;
-    belt[0].weight = -1;
-    strcpy(belt[0].time_stamp, "null package");
-}
-
 time_t get_time(char date_time[]){
     struct tm tm_d_time;
     strptime(date_time, format, &tm_d_time); //convert string to date/time of type tm using format
@@ -109,7 +107,18 @@ time_t count_time_diff(time_t t1, time_t t0){
     return difftime(t1, t0);
 }
 
+void move_belt_one_pos_forward(){
+    for(int i = max_pckgsCount_on_the_belt-1; i > 0; i--)
+        belt[i] = belt[i-1];
+    belt[0].workers_pid = -1;
+    belt[0].weight = -1;
+    strcpy(belt[0].time_stamp, empty_pckg_text);
+}
+
 void move_one_pckg_to_truck(package p){
+    printf("Yay, ładuję paczkę!\n");
+    set_struct_sembuf(sem_belt_weight_op, 0, p.weight, 0);
+    if(semop(sem_belt_weight_id, &sem_belt_weight_op, 1) < 0) die_errno("move_pck_to_truck");
     cur_pckg_no_in_truck++;
     printf("Ładowanie paczki do ciezarowki: PID = %d, time_diff = %d s, paczek = 1, free = %d, taken = %d\n",
     p.workers_pid, (int) count_time_diff(get_time(get_date_time()), get_time(p.time_stamp)), capacity - cur_pckg_no_in_truck, cur_pckg_no_in_truck);
@@ -121,6 +130,12 @@ void move_one_pckg_to_truck(package p){
         printf("Podjechanie pustej ciężarówki\n");
     }
 } 
+
+uint64_t GetTimeStamp() {
+    struct timeval tv;
+    gettimeofday(&tv,NULL);
+    return tv.tv_sec*(uint64_t)1000000+tv.tv_usec;
+}
 
 void test(){
     // testing
@@ -134,7 +149,9 @@ void test(){
     belt[0] = p;
     printf("BELT[0]: %d, %d, %s\n", belt[0].workers_pid, belt[0].weight, belt[0].time_stamp);
     
-    sleep(1);
+    printf("\n\n %" PRIu64 "", GetTimeStamp());
+    sleep(2);
+    printf(" vs %" PRIu64 "\n\n", GetTimeStamp());
 
     package p1;
     p1.weight = 123;
@@ -156,6 +173,12 @@ void test(){
 
 }
 
+int check_if_pckg_to_grab(){
+    package last_pckg = belt[last_pckg_index];
+    if(strcmp(last_pckg.time_stamp, empty_pckg_text) == 0) return 0;
+    return 1;
+}
+
 int main(int argc, char **argv){
     parse_input(argc, argv);
     set_signal_handling();
@@ -163,20 +186,40 @@ int main(int argc, char **argv){
     create_and_init_semaphores();
     create_and_init_shm();
     cur_pckg_no_in_truck = 0;
+    last_pckg_index = max_pckgsCount_on_the_belt - 1;
 
+    printf("SHM SIZE: %lu\n", SHM_SIZE(max_pckgsCount_on_the_belt));
+    sleep(12);
     printf("%s\n", get_date_time());
     
-    test();
+    // test();
+
+    union semun{
+        int val;
+    } arg;
+
+    while(1){
+        // OK????
+        printf("reading...\n");
+        if((arg.val = semctl(sem_message_id, 0, GETVAL, arg) < 0)) die_errno("getval sem_msg_id");
+        printf("Read val: %d\n", arg.val);
+        if(arg.val == 0) printf("Ktoś będzie chciał załadować paczkę\n");
+        if(check_if_pckg_to_grab()) move_one_pckg_to_truck(belt[last_pckg_index]);
+        /*???*/
+        else printf("Czekam na załadowanie paczki!\n");
+        move_belt_one_pos_forward();
+        sleep(2);
+    }
 
     /*
     // TO NALEZY CIAGLE NA NOWO USTAWIAC!!!!!!!!!!!!!!!!
     // set_struct_sembuf(sem_belt_weight_op, 0, waga_zdjetej_paczki, 0);
-    chyba z IPC_NOWAIT, wtedy pisze: "Czekam na załadowanie paczki"
+    chyba z IPC_NOWAIT, wtedy pisze: 
     */
 
-    // todo: count the difference between current time and time in the package
+    // todo: w MILISEKUNDACH zrobić różnicę czasów
     // todo in SIGINThandler: zablokować semafor taśmy transportowej dla pracowników, załadować to, co pozostało na taśmie
-    // algorytm obsługi taśmy + warunek na masę paczek, pakowanie do ciężarówki
+    // algorytm obsługi taśmy
     // wypisywanie u truckera, ze czeka na paczke
     // in loaders_manager.c: the case when cycles is not given, doesn't work...
 
