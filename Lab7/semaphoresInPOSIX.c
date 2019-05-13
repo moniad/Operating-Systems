@@ -1,6 +1,6 @@
 #include <stdio.h> // perror()
+#include <sys/ipc.h> // key_t
 #include <sys/types.h> // semctl(), ftok()
-#include <sys/ipc.h> // semctl(), ftok()
 #include <stdlib.h> // malloc(), getenv()
 #include <string.h>
 #include <signal.h>
@@ -9,17 +9,27 @@
 #include <stdio.h> // fgets()
 #include <wait.h>
 #include <semaphore.h>
+#include <sys/mman.h> // shared memory
 #include <sys/stat.h>
 #include <fcntl.h> // S_IWUSR itd.
 
 #define PROJ_ID 7
-#define SMH_SIZE 100
+#define MAX_BELT_LENGTH 100
+#define SHM_SIZE MAX_BELT_LENGTH * sizeof(char)
+// #define SHM_SIZE(K) (K*sizeof(struct package))
+#define DATE_LENGTH 30
 
-const char pathname[] = "/keypath";
+typedef struct package{
+    pid_t workers_pid;
+    int weight;
+    char time_stamp[DATE_LENGTH];
+} package;
+
+const char shmname[] = "/shared_memory";
 const char semname[] = "semafor1"; // "/semafor1"
 sem_t *semid;
-// *shmid, 
-key_t semkey, shmkey;
+key_t semkey;
+int shm_fd;
 char *shmdata;
 pid_t child;
 
@@ -40,62 +50,54 @@ void create_and_init_semaphore(){
     if((semid = sem_open(semname, O_CREAT | O_EXCL, 0600, 1)) < 0) die_errno("semopen()");
 }
 
-/*void create_and_init_shm(){
-    printf("creating sem\n");
-    if((shmkey = ftok(getenv("HOME"), PROJ_ID+1)) < 0) die_errno("shmkey ftok");
-    if((shmid = shmget(shmkey, SMH_SIZE, IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
-    if((shmdata = shmat(shmid, NULL, 0)) == (char *) (-1)) die_errno("shmat()");
+void create_and_init_shm(){
+    printf("creating shm\n");
+    if((shm_fd = shm_open(shmname, O_RDWR | O_CREAT | O_EXCL, 0600)) < 0) die_errno("shm_fd");
+    printf("shm_fd: %d\n", shm_fd);
+    // tell shm size:
+    if(ftruncate(shm_fd, SHM_SIZE) < 0) die_errno("ftruncate()");
+    // attach to process mem
+    if((shmdata = (char*) mmap(NULL, SHM_SIZE, PROT_READ | PROT_WRITE,
+    MAP_SHARED, shm_fd, 0)) == (char *) -1) die_errno("mmap()");
+    // close(shm_fd);
 }
-*/
+
 void rmv_sem_and_detach_shm(){
+    printf("removing sem and shm\n");
     if(wait(NULL) < 0) die_errno("wait");
     if(sem_close(semid) < 0) die_errno("semclose()");
     if(sem_unlink(semname) < 0) die_errno("sem unlink()");
 
-    // printf("removing sem and shm\n");
-    // if(shmdt(shmdata) < 0) {
-    //     printf("errno: %d\n", errno);
-    //     die_errno("shmdt");
-    // }
-    // if(semctl(semid, 1, IPC_RMID) < 0) die_errno("removing semaphore");
-    // if(shmctl(shmid, IPC_RMID, NULL) < 0) die_errno("removing shared memory");
-    // // system("ipcrm -a");
+    // detach from proc mem
+    if(munmap(shmdata, SHM_SIZE) < 0) die_errno("munmap()");
+    // mark as 'to remove'
+    if(shm_unlink(shmname) < 0) die_errno("shm_unlink()");
 }
 
 int main(int argc, char **argv){
     parse_input(argc, argv);
     create_and_init_semaphore();
-    // create_and_init_shm();
-
+    create_and_init_shm();
     int valp;
     if(sem_getvalue(semid, &valp) < 0) die_errno("sem getvalue()");
     printf("Valp: %d\n", valp);
 
     child = fork();
     if(child != 0) atexit(rmv_sem_and_detach_shm);
-    // *shmdata = 0;
     for(int i=0; i<3; i++){
         if(child != 0) {
-            // if(semop(semid, &take, 1) < 0) 
-            if(sem_wait(semid) < 0) die_errno("sem take in parent"); // --
-
-            // if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
-            printf("parent - taken: i = %d, shmdata = ...\n", i); //, shmdata);
-        //       strncpy(shmdata, "Parent\n", SMH_SIZE);
-        //   //   *shmdata = 10;
-        //     if(semop(semid, &give, 1) < 0)
-            if(sem_post(semid) < 0) die_errno("sem give in parent");
+                    if(sem_wait(semid) < 0) die_errno("sem take in parent"); // --
+            if(!fgets(shmdata, SHM_SIZE, stdin)) die_errno("child, gets()");
+            printf("parent - taken: i = %d, shmdata = %s\n", i, shmdata);
+            strncpy(shmdata, "Parent\n", SHM_SIZE);
+            if(sem_post(semid) < 0) die_errno("sem give in parent"); // ++
             sleep(1);
         }
         else {
-            // if(semop(semid, &take, 1) < 0) 
             if(sem_wait(semid) < 0) die_errno("sem take in child");
-
-          //   *shmdata = 8;
-            // if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
-            printf("child - taken: i = %d, shmdata = ...\n", i); //, shmdata);
-            // strncpy(shmdata, "Child\n", SMH_SIZE);
-            // if(semop(semid, &give, 1) < 0)
+            if(!fgets(shmdata, SHM_SIZE, stdin)) die_errno("child, gets()");
+            printf("child - taken: i = %d, shmdata = %s\n", i, shmdata);
+            strncpy(shmdata, "Child\n", SHM_SIZE);
             if(sem_post(semid) < 0) die_errno("sem give in child");
             sleep(1);
         }
