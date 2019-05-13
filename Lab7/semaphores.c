@@ -38,8 +38,8 @@ void create_and_init_semaphore(){
     if((semkey = ftok(getenv("HOME"), PROJ_ID)) < 0) die_errno("ftok");
     if((semid = semget(semkey, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget");
     take.sem_num = give.sem_num = 0; //initialization
-    take.sem_op = 1;
-    give.sem_op = -1;
+    take.sem_op = -1;
+    give.sem_op = 1;
     take.sem_flg = give.sem_flg = 0;
 }
 
@@ -62,26 +62,50 @@ void rmv_sem_and_detach_shm(){
     // system("ipcrm -a");
 }
 
+void set_sem_value_to(int i){
+    printf("Setting sem val to %d\n", i);
+    union semun {
+        int val;
+    } arg;
+    int c;
+    arg.val = i;
+    if(semctl(semid, 0, SETVAL, arg) < 0) die_errno("semctl semid");
+    sleep(3);
+    printf("semid: %d\n", semid);
+    if((c = semctl(semid, 0, GETVAL, 0) < 0)) die_errno("getval semid");
+        printf("Read val: %d\n\n", c);
+}
+
 int main(int argc, char **argv){
     parse_input(argc, argv);
     create_and_init_semaphore();
+    printf("THE PROBLEMS START ... ->\n\n");
+    set_sem_value_to(1);
+    printf("UP!\n");
+    sleep(1);
     create_and_init_shm();
     child = fork();
     if(child != 0) atexit(rmv_sem_and_detach_shm);
     // *shmdata = 0;
     for(int i=0; i<3; i++){
         if(child != 0) {
+            printf("Parent: Waiting for semaphore...\n");
             if(semop(semid, &take, 1) < 0) die_errno("semop take in parent");
+            // sleep(1);
+            printf("Parent: WRITE DOWN A WORD!\n");
             if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
             printf("parent - taken: i = %d, shmdata = %s\n", i, shmdata);
               strncpy(shmdata, "Parent\n", SMH_SIZE);
-          //   *shmdata = 10;
+            //   *shmdata = 10;
             if(semop(semid, &give, 1) < 0) die_errno("semop give in parent");
             sleep(1);
         }
         else {
+            printf("Child: Waiting for semaphore...\n");
             if(semop(semid, &take, 1) < 0) die_errno("semop take in child");
-          //   *shmdata = 8;
+            //   *shmdata = 8;
+            // sleep(1);
+            printf("Child: WRITE DOWN A WORD!\n");
             if(!fgets(shmdata, SMH_SIZE, stdin)) die_errno("child, gets()");
             printf("child - taken: i = %d, shmdata = %s\n", i, shmdata);
             strncpy(shmdata, "Child\n", SMH_SIZE);

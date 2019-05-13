@@ -40,7 +40,7 @@ void parse_input(int argc, char **argv){
     for(int i = 0; i < workersCount; i++){
         scanf("%s", workers_pckg_weight[i]);
 
-        /*the case when cycles is not given, doesn't work... I wanted to read a newline, but I cannot :< */
+        /*the case when cycles are not given, doesn't work... I wanted to read a newline, but I cannot :< */
         // if(fgets(cycles[i], 4, stdin) == NULL) {
         //     printf("HERE\n");
         //     sprintf(cycles[i], "%d", -1);

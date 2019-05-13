@@ -4,7 +4,11 @@ all: semaphores.o loader.o loaders_manager.o trucker.o
 	make loader.o
 	make loaders_manager.o
 	make trucker.o
+	make semaphoresInPOSIX.o
 	# make run
+
+semaphoresInPOSIX.o: semaphoresInPOSIX.c
+	gcc -Wall -o semaphoresInPOSIX.o semaphoresInPOSIX.c -g -lpthread -lrt
 
 semaphores.o: semaphores.c
 	gcc -Wall -o semaphores.o semaphores.c -g
