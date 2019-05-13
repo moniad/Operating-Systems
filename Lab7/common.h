@@ -1,3 +1,21 @@
+
+// DOKUMENTACJA:
+// loaders_manager tworzy mi tylko procesy
+// mam K miejsc w belt[]. Do belt[0] dokładam paczkę i odbieram paczkę spod ostatniego indeksu 
+// są 3 semafory:
+// - jeden - binarny - tylko dla loaderów do wkładania paczek na taśmę
+// - drugi - binarny - dla truckera i loaderów, aby w jednej chwili była wykonywana
+//      tylko jedna operacja na taśmie (ściągnięcie lub włożenie paczki)
+// - trzeci - wielowartościowy - wspólny dla truckera i loaderów, aby trucker ściągnął
+//      przynajmniej tyle paczek, ile trzeba, aby jakiś loader mógł dołożyć swoją paczkę
+
+// EXAMPLE INPUT:
+// ./trucker.o 2 4 5
+// ./loaders_manager.o 2
+// 15 2
+// 14 3
+
+
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
@@ -7,6 +25,7 @@
 #include <time.h>
 
 #define PROJ_ID 7
+#define MAX_BELT_LENGTH 100
 #define SHM_SIZE(K) (K*sizeof(struct package))
 #define DATE_LENGTH 30
 
@@ -19,40 +38,32 @@ typedef struct package{
 const char format[] = "%d-%m-%Y %H:%M:%S";
 key_t belt_key, sem_message_key, sem_belt_operation_key, sem_belt_weight_key;
 int belt_id, sem_message_id, sem_belt_operation_id, sem_belt_weight_id;
-struct sembuf sem_message_op_take, sem_message_op_give;
-struct sembuf sem_belt_operation_op_take, sem_belt_operation_op_give;
-struct sembuf sem_belt_weight_op;
 package *belt; // shared memory
 char datetime[DATE_LENGTH];
-
-// mam K miejsc w belt[]. w belt[i] trzymam paczkę i przesuwam wskaźnikiem (tam, gdzie wskaźnik,
-// odbieram paczkę) od końca 
-// do początku i wracam na koniec z powrotem (pętla). <- symulacja ruchu przesuwającego taśmę
-// jest 1 semafor do operacji na taśmie, tj. wsadzania przez loadera na pierwsze miejsce na taśmie LUB
-// ściągania przez truckera z ostatniego
 
 void die_errno(char *msg){
     perror(msg);
     exit(1);
 }
 
-void set_struct_sembuf(struct sembuf str, int num, int op, int flag){
-    str.sem_num = num;
-    str.sem_op = op;
-    str.sem_flg = flag;
+void set_struct_sembuf(struct sembuf *str, int num, int op, int flag){
+    str->sem_num = num;
+    str->sem_op = op;
+    str->sem_flg = flag;
 }
 
-void set_all_structs_sembuf(){
-    set_struct_sembuf(sem_message_op_take, 0, -1, 0);
-    set_struct_sembuf(sem_message_op_give, 0, 1, 0);
-    set_struct_sembuf(sem_belt_operation_op_take, 0, -1, 0);
-    set_struct_sembuf(sem_belt_operation_op_give, 0, 1, 0);
+void set_all_structs_sembuf(struct sembuf *s1, struct sembuf *s2, struct sembuf *s3, 
+    struct sembuf *s4){
+    set_struct_sembuf(s1, 0, -1, 0);
+    set_struct_sembuf(s2, 0, 1, 0);
+    set_struct_sembuf(s3, 0, -1, 0);
+    set_struct_sembuf(s4, 0, 1, 0);
 }
 
 char *get_date_time(){ // datetime is statically allocated, but it's not a problem
     time_t t = time(NULL);
     struct tm tm = *localtime(&t);
-    if(strftime(datetime, DATE_LENGTH, format, &tm) < 0) die_errno("strptime");
+    if(strftime(datetime, DATE_LENGTH, format, &tm) < 0) die_errno("strftime");
     printf("DT: %s\n", datetime);
     return datetime;
 }

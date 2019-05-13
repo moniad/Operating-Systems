@@ -24,13 +24,13 @@ char **cycles;
 char **workers_pckg_weight;
 pid_t pid;
 
-char max_pckgsCount_on_the_belt[MAX_CYCLE_AND_WEIGHT_DIGITS]; // added
+// char max_pckgsCount_on_the_belt[MAX_CYCLE_AND_WEIGHT_DIGITS]; // added
 
 void parse_input(int argc, char **argv){
-    // if(argc != 2) die_errno("Give me the number of workers\n");
-    if(argc != 3) die_errno("Give me the number of workers and max_pckgs_count\n"); // added
+    if(argc != 2) die_errno("Give me the number of workers\n");
+    // if(argc != 3) die_errno("Give me the number of workers and max_pckgs_count\n"); // added
     workersCount = (int) strtol(argv[1], NULL, 10);
-    strcpy(max_pckgsCount_on_the_belt, argv[2]);
+    // strcpy(max_pckgsCount_on_the_belt, argv[2]);
     cycles = malloc(workersCount * sizeof(char *));
     workers_pckg_weight = malloc(workersCount * sizeof(char *));
     for(int i = 0; i < workersCount; i++){
@@ -40,7 +40,7 @@ void parse_input(int argc, char **argv){
     for(int i = 0; i < workersCount; i++){
         scanf("%s", workers_pckg_weight[i]);
 
-        /*the case when cycles is not given, doesn't work... I wanted to read a newline, but I cannot :< */
+        /*the case when cycles are not given, doesn't work... I wanted to read a newline, but I cannot :< */
         // if(fgets(cycles[i], 4, stdin) == NULL) {
         //     printf("HERE\n");
         //     sprintf(cycles[i], "%d", -1);
@@ -51,7 +51,7 @@ void parse_input(int argc, char **argv){
     // printf("%d\n", workersCount);
     for(int i = 0; i < workersCount; i++)
         printf("weight: %s, cycles: %s\n", workers_pckg_weight[i], cycles[i]);
-    printf("max pckgs count: %s\n", max_pckgsCount_on_the_belt);
+    // printf("max pckgs count: %s\n", max_pckgsCount_on_the_belt);
 }
 
 void create_loader_processes(){
@@ -60,7 +60,7 @@ void create_loader_processes(){
         if(workers[i] == 0){
             printf("weights[i]: %s, cycles[i] : %s\n", workers_pckg_weight[i], cycles[i]);
             sleep(1);
-            execl("loader.o", workers_pckg_weight[i], cycles[i], max_pckgsCount_on_the_belt, NULL);
+            execl("loader.o", workers_pckg_weight[i], cycles[i], NULL); //, max_pckgsCount_on_the_belt, NULL);
         }
         else loaders_pids[i] = workers[i];
     }

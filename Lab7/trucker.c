@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE // for strptime()
 #include <stdio.h> // perror()
 #include <sys/types.h> // semctl(), ftok()
 #include <sys/ipc.h> // semctl(), ftok()
@@ -13,7 +14,6 @@
 #include <sys/stat.h> // S_IWUSR itd.
 #include <fcntl.h> // S_IWUSR
 #include <signal.h> // SIGINT handling
-#define _XOPEN_SOURCE // for strptime()
 #include <time.h> // strptime()
 #include <sys/time.h> // gettimeofday()
 #include <stdint.h> // uint64_t
@@ -28,6 +28,10 @@ int max_pckgsWeight_on_the_belt; // M
 int cur_pckg_no_in_truck;
 const char empty_pckg_text[] = "null package";
 int last_pckg_index;
+
+struct sembuf sem_message_op_take, sem_message_op_give;
+struct sembuf sem_belt_operation_op_take, sem_belt_operation_op_give;
+struct sembuf sem_belt_weight_op;
 
 struct sigaction act; // SIGINT handling
 void SIGINThandler(int signum);
@@ -47,33 +51,54 @@ void create_and_init_semaphores(){
     if((sem_belt_weight_key = ftok(getenv("HOME"), PROJ_ID+2)) < 0) die_errno("ftok sem_msg");
 
     // get IDs
-    if((sem_message_id = semget(sem_message_key, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget sem_mesg");
-    if((sem_belt_operation_id = semget(sem_belt_operation_key, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget sem_belt_operation");
-    if((sem_belt_weight_id = semget(sem_belt_weight_key, 1, IPC_CREAT | IPC_EXCL | S_IRUSR | S_IWUSR)) < 0) die_errno("semget sem_belt_weight");
+    if((sem_message_id = semget(sem_message_key, 1, IPC_CREAT | IPC_EXCL | 0600)) < 0) die_errno("semget sem_mesg");
+    if((sem_belt_operation_id = semget(sem_belt_operation_key, 1, IPC_CREAT | IPC_EXCL | 0600)) < 0) die_errno("semget sem_belt_operation");
+    if((sem_belt_weight_id = semget(sem_belt_weight_key, 1, IPC_CREAT | IPC_EXCL | 0600)) < 0) die_errno("semget sem_belt_weight");
 
-    set_all_structs_sembuf();
+    set_all_structs_sembuf(&sem_message_op_take, &sem_message_op_give, &sem_belt_operation_op_take,
+                    &sem_belt_operation_op_give);
+
+    /* CHECKED => THE SEMAPHORE VALUE IS NOT SET IN TRUCKER.C, BUT IS SET IN ANY OF LOADER.C
+    ANY OF THE PROCESSES ARE ABLE TO TAKE THIS SEMAPHORE...
+    */
 
     // setting initial values
-    union semun{ 
+    union semun {
         int val;
     } arg;
-
+    int c;
     arg.val = max_pckgsWeight_on_the_belt; // free places in terms of weight units
     if(semctl(sem_belt_weight_id, 0, SETVAL, arg) < 0) die_errno("semctl belt_weight()");
+    sleep(3);
+    printf("belt_id: %d, message_id: %d, weight_belt_id: %d\n", sem_belt_operation_id, sem_message_id, sem_belt_weight_id);
+    if((c = semctl(sem_belt_weight_id, 0, GETVAL, 0) < 0)) die_errno("getval sem_belt_weight_id");
+        printf("Read val3: %d\n\n", c);
     arg.val = 1;
     if(semctl(sem_belt_operation_id, 0, SETVAL, arg) < 0) die_errno("semctl belt_operation()");
+    sleep(3);
+    if((c = semctl(sem_belt_operation_id, 0, GETVAL, 0) < 0)) die_errno("getval sem_belt_op_id");
+        printf("Read val2: %d\n\n", c);
     if(semctl(sem_message_id, 0, SETVAL, arg) < 0) die_errno("semctl message()");
+    sleep(3);
+
+//  int set_val; <- IN THIS WAY I GET THE VALUE IN OTHER PROGRAMS
+//         if((set_val = semctl(sem_message_id, 0, GETVAL, 0)) < 0) die_errno("semctl belt_operation()");
+//         printf("semctl: %d\n", set_val);
+
+    if((c = semctl(sem_message_id, 0, GETVAL, 0) < 0)) die_errno("getval sem_msg_id");
+        printf("Read val1: %d\n\n\n", c);
+    // set_struct_sembuf(sem_message_op_take, 0, -1, 0);
+    // if(semop(sem_message_id, &sem_message_op_take, 1) < 0) die_errno("sem msg take");
 }
 
 void create_and_init_shm(){
     printf("creating shm\n");
     if((belt_key = ftok(getenv("HOME"), PROJ_ID-1)) < 0) die_errno("belt_key ftok");
-    if((belt_id = shmget(belt_key, SHM_SIZE(max_pckgsCount_on_the_belt), IPC_CREAT | 0666 | IPC_EXCL)) < 0) die_errno("shmget()");
+    if((belt_id = shmget(belt_key, SHM_SIZE(MAX_BELT_LENGTH), IPC_CREAT | 0600 | IPC_EXCL)) < 0) die_errno("shmget()");
     if((belt = (package *) shmat(belt_id, NULL, 0)) < 0) die_errno("shmat()");
 }
 
 void rmv_sem_and_detach_shm(){
-    // if(wait(NULL) < 0) die_errno("wait");
     printf("removing sem and shm\n");
     if(shmdt(belt) < 0) die_errno("shmdt");
     if(semctl(sem_message_id, 0, IPC_RMID) < 0) die_errno("removing sem_message");
@@ -117,7 +142,7 @@ void move_belt_one_pos_forward(){
 
 void move_one_pckg_to_truck(package p){
     printf("Yay, ładuję paczkę!\n");
-    set_struct_sembuf(sem_belt_weight_op, 0, p.weight, 0);
+    set_struct_sembuf(&sem_belt_weight_op, 0, p.weight, 0);
     if(semop(sem_belt_weight_id, &sem_belt_weight_op, 1) < 0) die_errno("move_pck_to_truck");
     cur_pckg_no_in_truck++;
     printf("Ładowanie paczki do ciezarowki: PID = %d, time_diff = %d s, paczek = 1, free = %d, taken = %d\n",
@@ -173,8 +198,8 @@ void test(){
 
 }
 
-int check_if_pckg_to_grab(){
-    package last_pckg = belt[last_pckg_index];
+int check_if_pckg_to_grab(int index){
+    package last_pckg = belt[index];
     if(strcmp(last_pckg.time_stamp, empty_pckg_text) == 0) return 0;
     return 1;
 }
@@ -188,15 +213,24 @@ int main(int argc, char **argv){
     cur_pckg_no_in_truck = 0;
     last_pckg_index = max_pckgsCount_on_the_belt - 1;
 
-    printf("SHM SIZE: %lu\n", SHM_SIZE(max_pckgsCount_on_the_belt));
-    sleep(12);
+    printf("SHM SIZE: %lu\n", SHM_SIZE(MAX_BELT_LENGTH));
+    sleep(1);
     printf("%s\n", get_date_time());
-    
-    // test();
+
+
+    // int set_val; <- == 0 AS WELL
+    // if((set_val = semctl(sem_message_id, 0, GETVAL, 0)) < 0) die_errno("semctl belt_operation()");
+    // printf("semctl: %d\n", set_val);
+
+    // int c = 10;
+    // if((c = semctl(sem_message_id, 0, GETVAL, 0) < 0)) die_errno("getval sem_msg_id");
+    //     printf("Read val: %d\n", c);
+    // // test();
 
     union semun{
         int val;
     } arg;
+
 
     while(1){
         // OK????
@@ -204,18 +238,14 @@ int main(int argc, char **argv){
         if((arg.val = semctl(sem_message_id, 0, GETVAL, arg) < 0)) die_errno("getval sem_msg_id");
         printf("Read val: %d\n", arg.val);
         if(arg.val == 0) printf("Ktoś będzie chciał załadować paczkę\n");
-        if(check_if_pckg_to_grab()) move_one_pckg_to_truck(belt[last_pckg_index]);
+        if(check_if_pckg_to_grab(last_pckg_index)) move_one_pckg_to_truck(belt[last_pckg_index]);
         /*???*/
-        else printf("Czekam na załadowanie paczki!\n");
+        else if(!check_if_pckg_to_grab(0)) printf("Czekam na załadowanie paczki!\n");
+        else printf("Paczki są już w drodze!\n");
         move_belt_one_pos_forward();
         sleep(2);
     }
 
-    /*
-    // TO NALEZY CIAGLE NA NOWO USTAWIAC!!!!!!!!!!!!!!!!
-    // set_struct_sembuf(sem_belt_weight_op, 0, waga_zdjetej_paczki, 0);
-    chyba z IPC_NOWAIT, wtedy pisze: 
-    */
 
     // todo: w MILISEKUNDACH zrobić różnicę czasów
     // todo in SIGINThandler: zablokować semafor taśmy transportowej dla pracowników, załadować to, co pozostało na taśmie
@@ -223,30 +253,6 @@ int main(int argc, char **argv){
     // wypisywanie u truckera, ze czeka na paczke
     // in loaders_manager.c: the case when cycles is not given, doesn't work...
 
-    // child = fork();
-    // if(child != 0) 
-    // // *belt = 0;
-    // for(int i=0; i<3; i++){
-    //     if(child != 0) {
-    //         if(semop(semid, &take, 1) < 0) die_errno("semop take in parent");
-    //         if(!fgets(belt, SMH_SIZE, stdin)) die_errno("child, gets()");
-    //         printf("parent - taken: i = %d, belt = %s\n", i, belt);
-    //           strncpy(belt, "Parent\n", SMH_SIZE);
-    //       //   *belt = 10;
-    //         if(semop(semid, &give, 1) < 0) die_errno("semop give in parent");
-    //         sleep(1);
-    //     }
-    //     else {
-    //         if(semop(semid, &take, 1) < 0) die_errno("semop take in child");
-    //       //   *belt = 8;
-    //         if(!fgets(belt, SMH_SIZE, stdin)) die_errno("child, gets()");
-    //         printf("child - taken: i = %d, belt = %s\n", i, belt);
-    //         strncpy(belt, "Child\n", SMH_SIZE);
-    //         if(semop(semid, &give, 1) < 0) die_errno("semop give in child");
-    //         sleep(1);
-    //     }
-    // }
-    // sleep (2);
     printf("Done\n");
     return 0;
 }
