@@ -51,8 +51,8 @@ void* passenger(void *thread_num) {
         if(curPassengerCount == 0) {
             pthread_cond_signal(&condEmptyCar);
         }
-//
-    pthread_mutex_unlock(&mutex);
+        
+        pthread_mutex_unlock(&mutex);
 
         if(RC.ridesCount > 0){
 
@@ -138,8 +138,6 @@ void* car(void *thread_num) {
             pthread_mutex_unlock(&mutex);
         }
         else {
-            // notify that there are no more rides
-            // pthread_cond_broadcast(&condNoMoreRides);
             pthread_mutex_unlock(&mutex);
             break;
         }
@@ -218,8 +216,7 @@ int main(int argc, char **argv)
 {
     parse_input(argc, argv);
 
-    // int psgStartID = 0;
-    createPassengerThreads(); // psgStartID);
+    createPassengerThreads();
 
     createCarThreads();
 
