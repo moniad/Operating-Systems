@@ -1,3 +1,4 @@
+// doesn't work :(
 /*Napisz prosty chat typu klient-serwer, w którym komunikacja zrealizowana jest za 
 pomocą kolejek komunikatów - jedna, na zlecenia klientów dla serwera, druga, prywatna,
 na odpowiedzi.
@@ -14,6 +15,8 @@ komunikaty z:
 - albo pliku
 */
 
+#define _GNU_SOURCE
+
 #include <stdio.h> // perror()
 #include <sys/types.h> // msgget(), ftok()
 #include <sys/ipc.h> // msgget(), ftok()
@@ -24,6 +27,9 @@ komunikaty z:
 #include <unistd.h> // sleep()
 #include <errno.h> // errno
 #include <time.h>
+#include <fcntl.h>           /* For O_* constants */
+#include <sys/stat.h>       /* mode constants */ 
+#include <mqueue.h> // POSIX queue fcts
 #include "Server.h"
 
 #define DATE_LENGTH 30
@@ -39,7 +45,7 @@ char *friendsIDs;
 char *datetime;
 int friends_count = 0;
 int clientsInd = 0;
-int flags = IPC_CREAT | 0666;
+int flags = O_RDONLY | O_CREAT;
 /*
 clients
 change login_client()
@@ -62,25 +68,21 @@ char *get_date_time(){
     return datetime;
 }
 
-struct msg *receive_msg(int msqid, int type, int msgflag){
-    msg *rcvd_init_msg = malloc(sizeof(msg));
-    if(msgrcv(msqid, rcvd_init_msg, MAX_MSG_SIZE, type, msgflag) < 0){
-        if(errno != ENOMSG) die_errno("server msgrcv");
-        return NULL;
+struct msg receive_msg(int type, int *priority){ // always receiving msg to server's queue
+    if(*priority < 0) die_errno("Priority must be > 0!");
+    msg rcvd_init_msg;
+    if(mq_receive(serv_msqid, (char *) &rcvd_init_msg, MAX_MSG_SIZE, (unsigned int*) priority) < 0){
+        die_errno("client mq_receive");
     }
     return rcvd_init_msg;
 }
 
 void rm_queue(void){
-    if(msgctl(serv_msqid, command, NULL) < 0){
-        die_errno("ipcrm");
-    }
+    if(mq_close(serv_msqid) < 0) die_errno("mq_close()");
 }
 
 void rm_client_queue(int cl_msqid){
-    if(msgctl(cl_msqid, command, NULL) < 0){
-        die_errno("ipcrm client's queue");
-    }
+    if(mq_close(cl_msqid) < 0) die_errno("mq_close() client's queue");
 }
 
 void set_signal_handling(){
@@ -95,26 +97,25 @@ void set_signal_handling(){
     }
 }
 
-void send_msg(int cl_msqid, int type, char *message, char *errno_msg){
+void send_msg(int cl_msqid, int type, char *message, char *errno_msg, int priority){
     msg mesg;
     mesg.mtype = type;
     strcpy(mesg.mtext, message);
 
     printf("SENDING: %s\n", mesg.mtext);
 
-    if(msgsnd(cl_msqid, &mesg, MAX_MSG_SIZE, IPC_NOWAIT) < 0)
+    if(mq_send(cl_msqid, (char*) &mesg, MAX_MSG_SIZE, priority) < 0)
         die_errno(errno_msg);
-    // free(message); //DON'T DO IT!!! THEY HAVE TO READ IT!!!
-    // free(errno_msg);
+    free(message);
+    free(errno_msg);
 }
 
-void echo(int cl_msqid, char *string){
-    if(!string) die_errno("empty string in echo");
-    char *res_string = malloc(strlen(string) + DATE_LENGTH);
-    strcpy(res_string, string);
+void echo(msg message){
+    char *res_string = malloc(strlen(message.mtext) + DATE_LENGTH);
+    strcpy(res_string, message.mtext);
     strcat(res_string, " ");
     strcat(res_string, get_date_time());
-    send_msg(cl_msqid, ECHO, res_string, "msgsnd, ECHO");
+    send_msg(message.msqid, ECHO, res_string, "sending msg - echo()", 1);
     free(res_string);
 }
 
@@ -153,7 +154,7 @@ int is_client_a_friend(char *clientID){
     while((friendID = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL)
         if(strcmp(friendID, clientID) == 0)
             return 1;
-    free(copy_of_friends); //<- FORBIDDEN!!!
+    free(copy_of_friends);
     return 0;
 }
 
@@ -191,7 +192,7 @@ void set_new_friends(int type, char *list){ // there won't be more clients conne
         // printf("AFTER ALL One friend: %s AND LIST %s\n", oneFriend, friendsIDs);
     }
     friends_count = new_friends_count;
-    // free(copy_of_list); <- invalid
+    free(copy_of_list); // <- invalid
 }
 
 void add(char *list_of_friends){ // includes checking if given friend is only once
@@ -265,7 +266,7 @@ void to_all_or_friends(int type, int cl_msqid, char *string){
     if(type == TO_ALL){
         for(int i = 0; i < MAX_CL_COUNT; i++)
             if(clients[i].clientID != -1)
-                send_msg(clients[i].clientID, TO_ALL, res_string, "msgsnd, to_all()");
+                send_msg(clients[i].clientID, TO_ALL, res_string, "msgsnd, to_all()", 1);
     }
     else if(type == TO_FRIENDS){
         char *copy_of_friends = malloc(MAX_CL_COUNT * (MAX_ID_LENGTH + 1) * sizeof(char));
@@ -273,7 +274,7 @@ void to_all_or_friends(int type, int cl_msqid, char *string){
         char *friend;
         while((friend = strtok_r(copy_of_friends, " ", &copy_of_friends)) != NULL){
             // printf("friend ID: %s\n", friend);
-            send_msg((int) strtol(friend, NULL, 10), TO_FRIENDS, res_string, "msgsnd, to_friends()");
+            send_msg((int) strtol(friend, NULL, 10), TO_FRIENDS, res_string, "msgsnd, to_friends()", 1);
         }
     }
     else die_errno("Wrong type of msg in to_all_or_friends!");
@@ -301,7 +302,7 @@ void to_one(int cl_from, int cl_to, char *string){ // supposing cl_to is on the 
     strcat(res_string, get_date_time());
     printf("FINAL MESSAGE: %s\n", res_string);
 
-    send_msg(cl_to, TO_ONE, res_string, "msgsnd, to_one()");
+    send_msg(cl_to, TO_ONE, res_string, "msgsnd, to_one()", 1);
     free(res_string);
     free(msqid_str);
 }
@@ -325,20 +326,23 @@ void init_array_and_vars(){
 }
 
 void SIGINThandler(int signum){
-    msg *stop_msg;
+    msg stop_msg;
+    int activeClientsCount = 0;
+    for(int i = 0; i < MAX_CL_COUNT; i++)
+        if(clients[i].clientID != -1)
+            activeClientsCount++;
+    
     printf("SERVER: Received SIGINT. Quiting...");
     // sending to all clients SIGINT && waiting for all clients to send STOP
-    for(int i = 0; i < clientCount; i++){
+    for(int i = 0; i < clientCount; i++)
         kill(clients[i].pid, SIGINT);
-        sleep(1);
-        if(clients[i].clientID != -1)
-            if((stop_msg = receive_msg(clients[i].clientID, STOP, 0)) == NULL){
-                printf("client ID = %d\n", clients[i].clientID);
-                die_errno("didn't receive STOP message from client");
-            }
-        rm_client_queue(clients[i].clientID);
+
+    int counter = 0;
+    while(counter < activeClientsCount){
+        stop_msg = receive_msg(STOP, NULL);
+        rm_client_queue(stop_msg.msqid);
+        counter++;
     }
-    free(stop_msg);
     exit(0);
 }
 
@@ -350,62 +354,52 @@ void SIGINThandler(int signum){
 ///
 
 //change it
-void login_client(){
+void login_client(msg message){
     if(clientCount == MAX_CL_COUNT){
         fprintf(stderr, "%s", "Cannot login new client. Too many clients logged in. Wait");
     }
+    char client_path[20];
+    sprintf(client_path, "/%d", message.pid);
+
     int cl_msqid;
-    // receive message
-    msg *rcvd_init_msg = receive_msg(serv_msqid, INIT, 0);
-    if(!rcvd_init_msg) die_errno("NULL in login_client()");
-    printf("RECEIVED: %s\n", rcvd_init_msg->mtext);
-    key_t cl_key = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
-    //-------------------
-    // answer 
-    // client using their queue. we know its key because it was sent in the init msg
-    if((cl_msqid = msgget(cl_key, flags)) < 0){
-        die_errno("msget, answering client");
-    }
+    if((cl_msqid = mq_open(client_path, O_WRONLY)) < 0) die_errno("mq_open, logging client");
     printf("CLIENT ID: %d\n", cl_msqid);
     clients[clientCount].clientID = cl_msqid;
-    // getting the PID of the process who SENT their key just before a while
-    rcvd_init_msg = receive_msg(serv_msqid, CL_PID, 0);
-    clients[clientCount].pid = (int) strtol(rcvd_init_msg->mtext, NULL, 10);
-    printf("RECEIVED && CONVERTED PID %d\n", clients[clientCount].pid);
+    clients[clientCount].pid = message.pid;
+
     msg answer;
     answer.mtype = ANS;
     sprintf(answer.mtext, "%d", cl_msqid);
     printf("ANSWER WITH CLIENTID: %s\n", answer.mtext);
-        // send answer
-    if(msgsnd(cl_msqid, &answer, strlen(answer.mtext), IPC_NOWAIT) < 0){
-       die_errno("msgsnd, answering client");
-    }
+    // send answer
+    send_msg(cl_msqid, ANS, answer.mtext, "answering client", 2);
     clientCount++;
     printf("MSG SENT TO CLIENT\n");
-    free(rcvd_init_msg);
 }
 
-void decode_message(msg *message){
-    switch (message->mtype){
+void decode_message(msg message){
+    switch (message.mtype){
+        case INIT:
+            login_client(message); break;
         case ECHO:
-            echo(message->msqid, message->mtext); break;
+            echo(message); break;
         case LIST:
             list(); break;
         case FRIENDS:
-            friends(message->mtext); break;
+            friends(message.mtext); break;
         case ADD:
-            add(message->mtext); break;
+            add(message.mtext); break;
         case DEL:
-            del(message->mtext); break;
+            del(message.mtext); break;
         case TO_ALL:
-            to_all_or_friends(TO_ALL, message->msqid, message->mtext); break;
+            to_all_or_friends(TO_ALL, message.msqid, message.mtext); break;
         case TO_FRIENDS:
-            to_all_or_friends(TO_FRIENDS, message->msqid, message->mtext); break;
+            to_all_or_friends(TO_FRIENDS, message.msqid, message.mtext); break;
         case TO_ONE: // ID is the first elem of the string
-            to_one((int) strtol(extract_ID_from_str(message->mtext), NULL, 10), 
-                message->msqid, message->mtext); break;
+            to_one((int) strtol(extract_ID_from_str(message.mtext), NULL, 10), 
+                message.msqid, message.mtext); break;
         case STOP:
-            stop(message->msqid);
+            stop(message.msqid);
             break;
         default:
             break;
@@ -416,65 +410,34 @@ int main(void){
     init_array_and_vars();
     set_signal_handling();
 
+    if(atexit(rm_queue) < 0) die_errno("atexit");
+
+// added it
+    struct mq_attr attr;
+    attr.mq_maxmsg = MAX_MSG_COUNT;
+    attr.mq_msgsize = MAX_MSG_SIZE;
+    attr.mq_curmsgs = 0;
+    attr.mq_flags = 0;
     // give the process read & write permission
-    if((serv_msqid = msgget(SERV_KEY, flags)) < 0){
-        die_errno("msget");
+    if((serv_msqid = mq_open(server_path, flags, 0666, &attr)) < 0){
+        die_errno("mq_open");
     }
-    if(atexit(rm_queue) < 0){
-        die_errno("atexit");
-    }
-
-  ///////////////////////////////////////////////////////////////  
     
-    // ------ ok
-    login_client(); // may need changes
-    printf("\n\nALL CLIENTS AFTER LOGIN:\n");
-    for(int i = 0; i < MAX_CL_COUNT; i++)
-        if(clients[i].clientID != -1)
-            printf("i: %d, clientID: %d\n", i, clients[i].clientID);
-
-    printf("\n\n");
-    // --- changing it
-    msg *rcvd_msg = malloc(sizeof(msg));
-    int clientID;
+    msg rcvd_msg;
     sleep(2);
-    // add("222 234");
-    // to_all_or_friends(TO_FRIENDS, 100, "ALA ma KOTA");
     
-    ///////////////////////////////////////////////////////////////
+    
+    ///////////////////////////////////////////////////////
     while(1){ // serving clients according to clientsInd
         // printf("\nFirst things first\n");
-        for(int i = 1; i <= 3; i++) // types: STOP, LIST, FRIENDS are served first
-            for(int j = 0; j < MAX_CL_COUNT; j++){
-                clientID = clients[j].clientID;
-                // printf("j: %d, ClientID: %d\n", j, clientID);
-                if(clientID == -1) continue;
-                while((rcvd_msg = receive_msg(clientID, i, IPC_NOWAIT)) != NULL){
-                    printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg->mtext, (int) rcvd_msg->mtype, clientID);
-                    decode_message(rcvd_msg);
-                }
-            }
-    
-        // then the remaining requests are served
         sleep(1);
-        printf("\nThen the rest\n");
-        // serving client whose id == clients[clientsInd].clientID
-            // receiving ALL messages of ANY TYPE because STOP message cannot come before INIT
-            // It would have been received if it had come.
-        clientID = clients[clientsInd].clientID;
-        if(clientID != -1){
-            printf("Messages from client: %d\n", clientID);
-            while((rcvd_msg = receive_msg(clientID, 0, IPC_NOWAIT)) != NULL){
-                printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg->mtext, (int) rcvd_msg->mtype, clientID);
-                sleep(1);
-                decode_message(rcvd_msg);
-            }
-        }
-        clientsInd++; // serving next client;
-        clientsInd %= MAX_CL_COUNT+1;
+        rcvd_msg = receive_msg(0, NULL);
+        printf("RECEIVED MESSAGE: %s, type: %d, from %d\n", rcvd_msg.mtext,
+                (int) rcvd_msg.mtype, rcvd_msg.msqid);
+        decode_message(rcvd_msg);
     }
-    free(datetime);
-    free(friendsIDs);
+    if(datetime) free(datetime);
+    if(friendsIDs) free(friendsIDs);
 
     return 0;
 }
