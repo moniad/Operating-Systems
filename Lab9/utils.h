@@ -12,19 +12,11 @@
 #include <math.h>
 #include <time.h>
 
-
-// typedef struct Car {
-//     int threadNumber;
-//     int *peopleTIDs;
-//     // int curPassengersCount;
-// } Car;
-
 typedef struct RollerCoaster {
     int passengerCount;
     int carCount;
     int carCapacity;
     int leftRidesCount;
-    // Car *currentCarsState;
 } RollerCoaster;
 
 struct timespec spec;
@@ -42,7 +34,7 @@ void printTimeStamp()
     clock_gettime(CLOCK_REALTIME, &spec);
 
     ms = spec.tv_sec * 1000 + spec.tv_nsec / 1000;
-    printf("Timestamp: %" PRIdMAX" miliseconds. ", ms);
+    printf("Timestamp: %" PRIdMAX" ms. ", ms);
 }
 
 // car messages
@@ -59,6 +51,7 @@ void printStartedRide(pthread_t tid){
 void printFinishedRide(pthread_t tid){
     printTimeStamp();
     printf("CAR: %d: Ride finished\n", (int) tid);
+    printf("===========================================================================\n");
 }
 
 void printOpeningDoor(pthread_t tid){
