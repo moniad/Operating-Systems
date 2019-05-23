@@ -4,14 +4,16 @@
 
 RollerCoaster RC;
 pthread_t *psgTIDs, *carTIDs;
-int carTIDsOffset;
+int carTIDsOffset; // car TIDs start from this offset
+int *consequentIDs; // storing there IDs (at first - passenger IDs, then - car IDs)
 int consequentIDsSize;
-int *consequentIDs;
 
+// current data
 int curCarID;
 int curPassengerCount;
-int canEnterCar;
+int canEnterCar; // for passenger
 
+// mutexes and condition variables
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condPassengerEnterCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condFinishedRide = PTHREAD_COND_INITIALIZER;
@@ -55,11 +57,7 @@ void ride(int thread_no) {
     pthread_cond_wait(&condEmptyCar, &mutex);
 }
 
-void doSthBeforeExitInPassenger(int thread_no) {
-    printFinishedThread(thread_no, "PASSENGER");
-    pthread_mutex_unlock(&mutex);
-}
-
+// passenger functions
 void addPassengerToCar(int thread_no) {
     curPassengerCount++;
     printEnteringCar(thread_no, curPassengerCount);
@@ -68,6 +66,11 @@ void addPassengerToCar(int thread_no) {
 void rmvPassengerFromCar(int thread_no) {
     curPassengerCount--;
     printLeavingCar(thread_no, curPassengerCount);
+}
+
+void doSthBeforeExitInPassenger(int thread_no) {
+    printFinishedThread(thread_no, "PASSENGER");
+    pthread_mutex_unlock(&mutex);
 }
 
 void* passenger(void *thread_num) {
@@ -114,6 +117,8 @@ void* passenger(void *thread_num) {
     doSthBeforeExitInPassenger(thread_no);
     return NULL;
 }
+
+// car functions
 
 void doSthBeforeExitInCar(int thread_no) {
     // tell every car that it can arrive so that all car threads can finish
@@ -169,7 +174,6 @@ void* car(void *thread_num) {
     doSthBeforeExitInCar(thread_no);
     return NULL;
 }
-
 
 void parse_input(int argc, char **argv) {
     if (argc != 5) die_errno("Pass: \n- passengerCount \n- carCount \n- carCapacity \n- leftRidesCount\n");
