@@ -53,8 +53,9 @@ void ride(int thread_no) {
 }
 
 void doSthBeforeExitInPassenger(int thread_no) {
-    pthread_mutex_unlock(&mutex);
+    pthread_mutex_lock(&mutex);
     printFinishedThread(thread_no, "PASSENGER");
+    pthread_mutex_unlock(&mutex);
 }
 
 void addPassengerToCar(int thread_no) {
@@ -98,9 +99,10 @@ void* passenger(void *thread_num) {
             // printf("curPassengerCount : %d\n", curPassengerCount);
         }
 
-        if(leftCarsCount == 0)
-            // pthread_mutex_unlock(&mutex);
+        if(leftCarsCount == 0) {
+            pthread_mutex_unlock(&mutex);
             break;
+        }
 
         addPassengerToCar(thread_no);
 
