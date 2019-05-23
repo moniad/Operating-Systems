@@ -53,7 +53,7 @@ void ride(int thread_no) {
 }
 
 void doSthBeforeExitInPassenger(int thread_no) {
-    // pthread_mutex_unlock(&mutex);
+    pthread_mutex_unlock(&mutex);
     printFinishedThread(thread_no, "PASSENGER");
 }
 
@@ -86,41 +86,28 @@ void* passenger(void *thread_num) {
         if(curPassengerCount == 0) {
             pthread_cond_signal(&condEmptyCar);
         }
-        
-        // pthread_mutex_unlock(&mutex);
-
-        
-        // pthread_mutex_lock(&mutex);
-        
-        
-        // printf("PASSNGRRR %d:, NO TO CHYBA PRZED WHILE'M JEST KONIEC\n", thread_no);
-        
-
+    
         // wait until passenger can enter the car
         while(!canEnterCar){
-            printf("PASSNGRRR %d:, No, czekam sobie :')\n", thread_no);
-
-            // broadcast ani signal ich nie odblokowuje :(
-
             pthread_cond_wait(&condPassengerEnterCar, &mutex);
 
-            printf("PASSNGRRR %d: Doczekaem się!! Autek jest tyle: %d\n", thread_no, leftCarsCount);
+            // printf("PASSNGRRR %d: Doczekaem się!! Autek jest tyle: %d\n", thread_no, leftCarsCount);
             if(leftCarsCount == 0) break;
 
-            
-            // printf("PASSNGRRR %d:, KINSĘ DALEJ W WHILE'U\n", thread_no);
             if(curPassengerCount >= RC.carCapacity) continue;
             // printf("curPassengerCount : %d\n", curPassengerCount);
         }
 
-        printf("PASSNGRRR %d: NO TO CHYBA JESZCZE DODAM SOBIE PASAŻRŁA\n", thread_no);
+        if(leftCarsCount == 0)
+            // pthread_mutex_unlock(&mutex);
+            break;
+
         addPassengerToCar(thread_no);
 
         if(curPassengerCount == RC.carCapacity) {
             // signal that curCar is full
             pthread_cond_broadcast(&condFullCar);
         }
-        printf("PASSNGRRR %d: , A MOŻE NA KOŃCU? \n", thread_no);
         pthread_mutex_unlock(&mutex);
     }
 
@@ -129,21 +116,12 @@ void* passenger(void *thread_num) {
 }
 
 void doSthBeforeExitInCar(int thread_no) {
-// Stack Overflow version
     leftCarsCount--;
-    printf("left cars before exiting: %d\n", leftCarsCount);
 
-//  added it here to test the behaviour
-    // canEnterCar = 1;
-//
-    // sleep(5);
-    // for (int i = 0; i < RC.passengerCount; i++)
-    //     pthread_cond_signal(&condPassengerEnterCar);
     pthread_cond_broadcast(&condPassengerEnterCar);
-// probably part 2
-    // sleep(5);
+
     pthread_mutex_unlock(&mutex);
-    // sleep(5);
+
     printFinishedThread(thread_no, "CAR");
 }
 
@@ -155,21 +133,16 @@ void* car(void *thread_num) {
 
     while(RC.ridesCount >= 0){
 
-        // printf("\n\nLeft Rides Count: %d, TID: %d\n\n", RC.ridesCount, thread_no);
-
         pthread_mutex_lock(&mutex);
     
           /*
             wait for your turn
         */        
         
-        // printf("BEFORE WHILE: thread_no: %d, CurCarID %d\n", thread_no, curCarID); //, canArriveNextCar);
         while(thread_no != curCarID)
             pthread_cond_wait(&condCanArriveNextCar, &mutex);
 
         printOpeningDoor(thread_no);
-
-        printf("\nRIDES COUNT : %d\n\n", RC.ridesCount);
 
         if(RC.ridesCount < 0) break;
 
@@ -188,9 +161,9 @@ void* car(void *thread_num) {
 
         // let next car arrive
         curPassengerCount = 0;
-        printf("curCarID before; %d\n", curCarID);
+        // printf("curCarID before; %d\n", curCarID);
         curCarID = (curCarID + 1 - carTIDsOffset) % RC.carCount + carTIDsOffset;
-        printf("curCarID after; %d\n", curCarID);
+        // printf("curCarID after; %d\n", curCarID);
         pthread_cond_signal(&condCanArriveNextCar);
 
         pthread_mutex_unlock(&mutex);
