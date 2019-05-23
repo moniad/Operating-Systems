@@ -20,6 +20,7 @@ pthread_cond_t condFinishedRide = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condFullCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condEmptyCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condCanArriveNextCar = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condPressedStart = PTHREAD_COND_INITIALIZER;
 
 void doTheCleanUp() {
     free(consequentIDs);
