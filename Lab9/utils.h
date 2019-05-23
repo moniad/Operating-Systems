@@ -23,7 +23,7 @@ typedef struct RollerCoaster {
     int passengerCount;
     int carCount;
     int carCapacity;
-    int ridesCount;
+    int leftRidesCount;
     // Car *currentCarsState;
 } RollerCoaster;
 
