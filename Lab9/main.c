@@ -15,7 +15,7 @@ int curPassengerCount;
 int canEnterCar;
 int isRideFinished;
 
-int leftCarsCount;
+// int leftCarsCount;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condPassengerEnterCar = PTHREAD_COND_INITIALIZER;
@@ -25,7 +25,7 @@ pthread_cond_t condEmptyCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condCanArriveNextCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condNewCarToGetOffArrived = PTHREAD_COND_INITIALIZER;
 
-void ride(int thread_no) {
+void ride(int thread_no) {    
     printStartedRide(thread_no);
     
     struct timespec spec;
@@ -46,20 +46,20 @@ void ride(int thread_no) {
 
     printOpeningDoor(thread_no);
 
-    if(RC.ridesCount == 0) {
-        leftCarsCount = 0;
-    }
+    // if(
+        // RC.ridesCount == 0) {
+        // leftCarsCount = 0;
+    // }
 
+    isRideFinished = 0;
     pthread_cond_broadcast(&condFinishedRide);
     pthread_cond_wait(&condEmptyCar, &mutex);
 
     printf("CAR %d: Empty car\n", thread_no);
-    
-    isRideFinished = 0;
 }
 
 void doSthBeforeExitInPassenger(int thread_no) {
-    pthread_mutex_lock(&mutex);
+    // pthread_mutex_lock(&mutex);
     printFinishedThread(thread_no, "PASSENGER");
     pthread_mutex_unlock(&mutex);
 }
@@ -78,42 +78,31 @@ void* passenger(void *thread_num) {
     int thread_no = *(int *) thread_num;
     // printf("\n I'm a passenger: %d \n", thread_no);
  
-    pthread_cond_signal(&condEmptyCar);
+    pthread_cond_broadcast(&condEmptyCar);
 
-    while(leftCarsCount > 0){
-
-        pthread_mutex_lock(&mutex);
-
-        // wait for people to get off the car        
-        if(curPassengerCount > 0) {
-            while(!isRideFinished){
-                pthread_cond_wait(&condFinishedRide, &mutex);
-            }
-            printf("PSSNGEEER %d: GETTING OFF THE CAR\n", thread_no);
-            rmvPassengerFromCar(thread_no);
-                if(curPassengerCount == 0) {
-                printf("PSSNGEEER: %d Signaling empty car\n", thread_no);
-                pthread_cond_signal(&condEmptyCar);
-            }
-        }
-
-        pthread_mutex_unlock(&mutex);
+    int i = 5;
+    while(i--){ // leftCarsCount
 
         pthread_mutex_lock(&mutex);
+
         // wait until passenger can enter the car
         while(!canEnterCar){
             printf("PSSNGEEER: %d Waiting until can enter car\n", thread_no);
             pthread_cond_wait(&condPassengerEnterCar, &mutex);
 
-            printf("PASSNGRRR %d: Autek jest tyle: %d\n", thread_no, leftCarsCount);
-            if(leftCarsCount == 0) break;
+            // printf("PASSNGRRR %d: Autek jest tyle: %d\n", thread_no, leftCarsCount);
+            if(RC.ridesCount == 0) break; // leftCarsCount
 
-            if(curPassengerCount >= RC.carCapacity) continue;
+            if(curPassengerCount >= RC.carCapacity) {
+                // pthread_cond_broadcast(&condFullCar);
+                continue;
+            }
+            printf("PSNGEEEERRRRRRRR: %d: Will STOP Waiting???\n", thread_no);
             // printf("curPassengerCount : %d\n", curPassengerCount);
         }
 
-        if(leftCarsCount == 0) {
-            pthread_mutex_unlock(&mutex);
+        if(RC.ridesCount == 0) { //leftCarsCount == 0) {
+            // pthread_mutex_unlock(&mutex);
             break;
         }
 
@@ -123,6 +112,21 @@ void* passenger(void *thread_num) {
             // signal that curCar is full
             pthread_cond_broadcast(&condFullCar);
         }
+
+        // wait for people to get off the car        
+        if(curPassengerCount > 0) {
+            if(!isRideFinished){ // while
+                printf("PSNGGRRR: %d: Waiting until RIDE is FINISHED\n", thread_no);
+                pthread_cond_wait(&condFinishedRide, &mutex);
+            }
+
+            rmvPassengerFromCar(thread_no);
+            if(curPassengerCount == 0) {
+                printf("PSSNGEEER: %d Signaling empty car\n", thread_no);
+                pthread_cond_signal(&condEmptyCar);
+            }
+        }
+
         pthread_mutex_unlock(&mutex);
     }
 
@@ -149,9 +153,9 @@ void* car(void *thread_num) {
     int thread_no = *(int *) thread_num;
     // printf("\n I'm a car: %d \n", thread_no);
     
-    pthread_cond_signal(&condCanArriveNextCar);
+    pthread_cond_broadcast(&condCanArriveNextCar);
 
-    while(RC.ridesCount >= 0){
+    while(1) { // RC.ridesCount >= 0){
 
         pthread_mutex_lock(&mutex);
     
@@ -159,11 +163,17 @@ void* car(void *thread_num) {
             wait for your turn
         */        
         
-        while(thread_no != curCarID)
+        printf("CAR: %d: PROBABLY LAST INFO FROM SOME OF CARS\n", thread_no);
+        while(thread_no != curCarID) {
             pthread_cond_wait(&condCanArriveNextCar, &mutex);
+            if(RC.ridesCount == 0) break;
+        }
 
-        if(RC.ridesCount < 0 || leftCarsCount == 0) break;
-        
+        if(RC.ridesCount == 0 /*|| leftCarsCount == 0 */) {
+            printf("CAR: %d: Who has ended their trip?????\n", thread_no);
+            break;
+        }
+
         printOpeningDoor(thread_no);
 
         // let people enter the car
@@ -180,11 +190,9 @@ void* car(void *thread_num) {
         ride(thread_no);
 
         // let next car arrive
-        curPassengerCount = 0;
-        // printf("curCarID before; %d\n", curCarID);
         curCarID = (curCarID + 1 - carTIDsOffset) % RC.carCount + carTIDsOffset;
-        // printf("curCarID after; %d\n", curCarID);
-        pthread_cond_signal(&condCanArriveNextCar);
+        printf("SIGNALING curCarID that it can start; %d\n", curCarID);
+        pthread_cond_broadcast(&condCanArriveNextCar);
 
         pthread_mutex_unlock(&mutex);
     }
@@ -200,7 +208,7 @@ void parse_input(int argc, char **argv) {
     RC.passengerCount = atoi(argv[1]);
     RC.carCount = atoi(argv[2]);
     RC.carCapacity = atoi(argv[3]);
-    RC.ridesCount = atoi(argv[4]) - 1;
+    RC.ridesCount = atoi(argv[4]);
 
     printf("passengerCount: %d, ", RC.passengerCount);
     printf("carCount: %d, ", RC.carCount);
@@ -222,7 +230,7 @@ void parse_input(int argc, char **argv) {
     curPassengerCount = 0;
     canEnterCar = 0;
     isRideFinished = 0;
-    leftCarsCount = RC.carCount;
+    // leftCarsCount = RC.carCount;
 }
 
 void createPassengerThreads() {
