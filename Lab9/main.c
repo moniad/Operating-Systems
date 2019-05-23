@@ -72,6 +72,8 @@ void* passenger(void *thread_num) {
     int thread_no = *(int *) thread_num;
     // printf("\n I'm a passenger: %d \n", thread_no);
  
+    pthread_cond_signal(&condEmptyCar);
+
     while(leftCarsCount > 0){
 
         pthread_mutex_lock(&mutex);
@@ -81,15 +83,27 @@ void* passenger(void *thread_num) {
             while(!isRideFinished){
                 pthread_cond_wait(&condFinishedRide, &mutex);
             }
+            printf("PSSNGEEER %d: GETTING OFF THE CAR\n", thread_no);
             rmvPassengerFromCar(thread_no);
+                if(curPassengerCount == 0) {
+                printf("PSSNGEEER: %d Signaling empty car\n", thread_no);
+                pthread_cond_signal(&condEmptyCar);
+            }
         }
 
-        if(curPassengerCount == 0) {
-            pthread_cond_signal(&condEmptyCar);
-        }
+// added two lines
+        // pthread_mutex_unlock(&mutex);
+        // pthread_mutex_lock(&mutex);
+
+        // if(curPassengerCount == 0) {
+        //     printf("PSSNGEEER: %d Signaling empty car\n", thread_no);
+        //     pthread_cond_signal(&condEmptyCar);
+        // }
+
     
         // wait until passenger can enter the car
         while(!canEnterCar){
+            printf("PSSNGEEER: %d Waiting until can enter car\n", thread_no);
             pthread_cond_wait(&condPassengerEnterCar, &mutex);
 
             // printf("PASSNGRRR %d: Doczekaem się!! Autek jest tyle: %d\n", thread_no, leftCarsCount);
@@ -119,6 +133,11 @@ void* passenger(void *thread_num) {
 
 void doSthBeforeExitInCar(int thread_no) {
     leftCarsCount--;
+
+// added this lines
+    pthread_cond_broadcast(&condCanArriveNextCar);
+    canEnterCar = 1;
+//
 
     pthread_cond_broadcast(&condPassengerEnterCar);
 
