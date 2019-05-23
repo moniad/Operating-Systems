@@ -12,11 +12,19 @@
 #include <math.h>
 #include <time.h>
 
+
+// typedef struct Car {
+//     int threadNumber;
+//     int *peopleTIDs;
+//     // int curPassengersCount;
+// } Car;
+
 typedef struct RollerCoaster {
     int passengerCount;
     int carCount;
     int carCapacity;
     int ridesCount;
+    // Car *currentCarsState;
 } RollerCoaster;
 
 struct timespec spec;
