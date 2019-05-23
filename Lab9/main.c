@@ -46,8 +46,14 @@ void ride(int thread_no) {
 
     printOpeningDoor(thread_no);
 
+    if(RC.ridesCount == 0) {
+        leftCarsCount = 0;
+    }
+
     pthread_cond_broadcast(&condFinishedRide);
     pthread_cond_wait(&condEmptyCar, &mutex);
+
+    printf("CAR %d: Empty car\n", thread_no);
     
     isRideFinished = 0;
 }
@@ -91,22 +97,15 @@ void* passenger(void *thread_num) {
             }
         }
 
-// added two lines
-        // pthread_mutex_unlock(&mutex);
-        // pthread_mutex_lock(&mutex);
+        pthread_mutex_unlock(&mutex);
 
-        // if(curPassengerCount == 0) {
-        //     printf("PSSNGEEER: %d Signaling empty car\n", thread_no);
-        //     pthread_cond_signal(&condEmptyCar);
-        // }
-
-    
+        pthread_mutex_lock(&mutex);
         // wait until passenger can enter the car
         while(!canEnterCar){
             printf("PSSNGEEER: %d Waiting until can enter car\n", thread_no);
             pthread_cond_wait(&condPassengerEnterCar, &mutex);
 
-            // printf("PASSNGRRR %d: Doczekaem się!! Autek jest tyle: %d\n", thread_no, leftCarsCount);
+            printf("PASSNGRRR %d: Autek jest tyle: %d\n", thread_no, leftCarsCount);
             if(leftCarsCount == 0) break;
 
             if(curPassengerCount >= RC.carCapacity) continue;
@@ -132,7 +131,7 @@ void* passenger(void *thread_num) {
 }
 
 void doSthBeforeExitInCar(int thread_no) {
-    leftCarsCount--;
+    // --leftCarsCount;
 
 // added this lines
     pthread_cond_broadcast(&condCanArriveNextCar);
@@ -141,9 +140,9 @@ void doSthBeforeExitInCar(int thread_no) {
 
     pthread_cond_broadcast(&condPassengerEnterCar);
 
-    pthread_mutex_unlock(&mutex);
-
     printFinishedThread(thread_no, "CAR");
+
+    pthread_mutex_unlock(&mutex);
 }
 
 void* car(void *thread_num) {
@@ -163,9 +162,9 @@ void* car(void *thread_num) {
         while(thread_no != curCarID)
             pthread_cond_wait(&condCanArriveNextCar, &mutex);
 
+        if(RC.ridesCount < 0 || leftCarsCount == 0) break;
+        
         printOpeningDoor(thread_no);
-
-        if(RC.ridesCount < 0) break;
 
         // let people enter the car
         canEnterCar = 1;
