@@ -11,7 +11,6 @@ int *consequentIDs;
 int curCarID;
 int curPassengerCount;
 int canEnterCar;
-// int isRideFinished;
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condPassengerEnterCar = PTHREAD_COND_INITIALIZER;
@@ -199,7 +198,6 @@ void parse_input(int argc, char **argv) {
     curCarID = carTIDsOffset;
     curPassengerCount = 0;
     canEnterCar = 0;
-    // isRideFinished = 0;
 }
 
 void createPassengerThreads() {
