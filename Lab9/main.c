@@ -15,15 +15,12 @@ int curPassengerCount;
 int canEnterCar;
 int isRideFinished;
 
-// int leftCarsCount;
-
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t condPassengerEnterCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condFinishedRide = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condFullCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condEmptyCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condCanArriveNextCar = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condNewCarToGetOffArrived = PTHREAD_COND_INITIALIZER;
 
 void ride(int thread_no) {    
     printStartedRide(thread_no);
@@ -178,7 +175,7 @@ void* car(void *thread_num) {
             pthread_cond_signal(&condPassengerEnterCar);
         }
         printf("TID: %d: now waiting for full car!\n", thread_no);
-        // if(curPassengerCount < RC.carCapacity)
+
         pthread_cond_wait(&condFullCar, &mutex);
         
         canEnterCar = 0;
@@ -187,7 +184,7 @@ void* car(void *thread_num) {
 
         // let next car arrive
         curCarID = (curCarID + 1 - carTIDsOffset) % RC.carCount + carTIDsOffset;
-        printf("SIGNALING curCarID that it can start; %d\n", curCarID);
+        // printf("SIGNALING curCarID that it can start; %d\n", curCarID);
         pthread_cond_broadcast(&condCanArriveNextCar);
 
         pthread_mutex_unlock(&mutex);
@@ -226,7 +223,6 @@ void parse_input(int argc, char **argv) {
     curPassengerCount = 0;
     canEnterCar = 0;
     isRideFinished = 0;
-    // leftCarsCount = RC.carCount;
 }
 
 void createPassengerThreads() {
@@ -272,7 +268,6 @@ int main(int argc, char **argv)
 
 
     pthread_mutex_destroy(&mutex);
-    pthread_cond_destroy(&condNewCarToGetOffArrived);
     pthread_cond_destroy(&condEmptyCar);
     pthread_cond_destroy(&condFullCar);
     pthread_cond_destroy(&condCanArriveNextCar);
