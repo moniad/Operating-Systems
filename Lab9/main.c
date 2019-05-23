@@ -100,14 +100,11 @@ void* passenger(void *thread_num) {
 
         // wait for people to get off the car        
         if(curPassengerCount > 0) {
-            // if(!isRideFinished){
-                // printf("PSNGGRRR: %d: Waiting until RIDE is FINISHED\n", thread_no);
-                pthread_cond_wait(&condFinishedRide, &mutex);
-            // }
+            pthread_cond_wait(&condFinishedRide, &mutex);
 
             rmvPassengerFromCar(thread_no);
             if(curPassengerCount == 0) {
-                // printf("PSSNGEEER: %d Signaling empty car\n", thread_no);
+                // signaling empty car
                 pthread_cond_signal(&condEmptyCar);
             }
         }
