@@ -87,35 +87,40 @@ void* passenger(void *thread_num) {
             pthread_cond_signal(&condEmptyCar);
         }
         
-        pthread_mutex_unlock(&mutex);
+        // pthread_mutex_unlock(&mutex);
 
         
-        pthread_mutex_lock(&mutex);
+        // pthread_mutex_lock(&mutex);
         
         
-        printf("NO TO CHYBA TU JEST KONIEC\n");
+        // printf("PASSNGRRR %d:, NO TO CHYBA PRZED WHILE'M JEST KONIEC\n", thread_no);
         
 
         // wait until passenger can enter the car
         while(!canEnterCar){
+            printf("PASSNGRRR %d:, No, czekam sobie :')\n", thread_no);
+
+            // broadcast ani signal ich nie odblokowuje :(
+
             pthread_cond_wait(&condPassengerEnterCar, &mutex);
 
-            printf("LEft cars: %d\n", leftCarsCount);
+            printf("PASSNGRRR %d: Doczekaem się!! Autek jest tyle: %d\n", thread_no, leftCarsCount);
             if(leftCarsCount == 0) break;
 
             
-            printf("NO TO CHYBA TUtutruru JEST KONIEC\n");
+            // printf("PASSNGRRR %d:, KINSĘ DALEJ W WHILE'U\n", thread_no);
             if(curPassengerCount >= RC.carCapacity) continue;
             // printf("curPassengerCount : %d\n", curPassengerCount);
         }
-        printf("NO TO CHYBA TUuu JEST KONIEC\n");
+
+        printf("PASSNGRRR %d: NO TO CHYBA JESZCZE DODAM SOBIE PASAŻRŁA\n", thread_no);
         addPassengerToCar(thread_no);
 
         if(curPassengerCount == RC.carCapacity) {
             // signal that curCar is full
             pthread_cond_broadcast(&condFullCar);
         }
-        printf("A MOŻE TU \n");
+        printf("PASSNGRRR %d: , A MOŻE NA KOŃCU? \n", thread_no);
         pthread_mutex_unlock(&mutex);
     }
 
@@ -124,11 +129,21 @@ void* passenger(void *thread_num) {
 }
 
 void doSthBeforeExitInCar(int thread_no) {
-    // pthread_mutex_unlock(&mutex);
+// Stack Overflow version
     leftCarsCount--;
     printf("left cars before exiting: %d\n", leftCarsCount);
-    sleep(1);
+
+//  added it here to test the behaviour
+    // canEnterCar = 1;
+//
+    // sleep(5);
+    // for (int i = 0; i < RC.passengerCount; i++)
+    //     pthread_cond_signal(&condPassengerEnterCar);
     pthread_cond_broadcast(&condPassengerEnterCar);
+// probably part 2
+    // sleep(5);
+    pthread_mutex_unlock(&mutex);
+    // sleep(5);
     printFinishedThread(thread_no, "CAR");
 }
 
