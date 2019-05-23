@@ -1,5 +1,3 @@
-/* not including pressing START button yet */
-
 #include "utils.h"
 
 RollerCoaster RC;
@@ -12,6 +10,7 @@ int consequentIDsSize;
 int curCarID;
 int curPassengerCount;
 int canEnterCar; // for passenger
+int canPressStart = 0;
 
 // mutexes and condition variables
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -20,7 +19,8 @@ pthread_cond_t condFinishedRide = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condFullCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condEmptyCar = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condCanArriveNextCar = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condPressedStart = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condPressedStart = PTHREAD_COND_INITIALIZER; // to wait until START button is pressed
+pthread_cond_t condCanPressStart = PTHREAD_COND_INITIALIZER; // to tell the passenger to press it
 
 void doTheCleanUp() {
     free(consequentIDs);
@@ -33,6 +33,18 @@ void doTheCleanUp() {
     pthread_cond_destroy(&condCanArriveNextCar);
     pthread_cond_destroy(&condPassengerEnterCar);
     pthread_cond_destroy(&condFinishedRide);
+    pthread_cond_destroy(&condPressedStart);
+}
+
+void pressStart(int thread_no){ // the last person who enters the lift presses the button
+    printPressedStart(thread_no);
+    pthread_cond_broadcast(&condPressedStart);
+}
+
+void waitForPressingStart(int thread_no){
+    if(curCarID == thread_no){
+        pthread_cond_wait(&condPressedStart, &mutex);
+    }
 }
 
 void ride(int thread_no) {    
@@ -99,6 +111,10 @@ void* passenger(void *thread_num) {
         if(curPassengerCount == RC.carCapacity) {
             // signal that curCar is full
             pthread_cond_broadcast(&condFullCar);
+            // if(!canPressStart){
+                pthread_cond_wait(&condCanPressStart, &mutex);
+            // }
+            pressStart(thread_no);
         }
 
         // wait for people to get off the car        
@@ -159,6 +175,10 @@ void* car(void *thread_num) {
         }
 
         pthread_cond_wait(&condFullCar, &mutex);
+
+        // car is full, so now start can be pressed
+        pthread_cond_broadcast(&condCanPressStart);
+        waitForPressingStart(thread_no);
         
         canEnterCar = 0;
         printClosingDoor(thread_no);              
