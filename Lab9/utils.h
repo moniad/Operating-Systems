@@ -12,6 +12,8 @@
 #include <math.h>
 #include <time.h>
 
+int *curCarPassengers;
+
 typedef struct RollerCoaster {
     int passengerCount;
     int carCount;
