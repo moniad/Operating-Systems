@@ -12,24 +12,42 @@
 #include <math.h>
 #include <time.h>
 
-int *curCarPassengers;
+typedef struct Car {
+    int ID;
+    int passengersCount;
+    int *passengersIDs;
+} Car;
 
 typedef struct RollerCoaster {
-    int passengerCount;
+    int totalPassengerCount;
     int carCount;
     int carCapacity;
     int leftRidesCount;
+    Car *cars;
 } RollerCoaster;
 
 struct timespec spec;
+
+void printCurrentCarsState(RollerCoaster RC){
+    printf("Printing current cars state:\n");
+    for(int i = 0; i < RC.carCount; i++){
+        printf("ID: %d, ", RC.cars[i].ID);
+        printf("Passenger count: %d\n", RC.cars[i].passengersCount);
+        printf("Passenger IDs:\n");
+
+        for(int j = 0; j < RC.cars[i].passengersCount; j++)
+            printf("%d ", RC.cars[i].passengersIDs[j]);
+        
+        printf("\n\n");
+    }
+}
 
 void die_errno(char *message) {
     printf("ERROR: %s\n", message);
     exit(1);
 }
 
-void printTimeStamp()
-{
+void printTimeStamp() {
     long ms; // milliseconds
     struct timespec spec;
 
