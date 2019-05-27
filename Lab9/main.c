@@ -260,13 +260,17 @@ void* car(void *thread_num) {
             if(RC.leftRidesCount == 0) break;
         }
 
-        if(RC.leftRidesCount == 0) break;
-
         printOpeningDoor(thread_no);
 
         pthread_cond_broadcast(&condOpenDoor);
 
         printf("Waiting for passnegers to leave\n");
+
+        if(RC.leftRidesCount == 0) {
+            if(thread_no == RC.cars[curCarInd].ID && RC.cars[curCarInd].passengersCount > 0)
+                waitUntilCarIsEmpty(thread_no);
+            break;
+        }
 
         if(RC.cars[thread_no - carTIDsOffset].passengersCount > 0) {
             waitUntilCarIsEmpty(thread_no);
