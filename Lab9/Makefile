@@ -1,7 +1,7 @@
 all: run
 
 run: main.o
-	./main.o 30 3 6 2 
+	./main.o 30 1 6 2 
 	# >> Results.txt
 
 main.o: main.c
