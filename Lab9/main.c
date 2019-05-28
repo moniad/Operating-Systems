@@ -113,7 +113,6 @@ int addPassengerToCar(int thread_no) {
     RC.cars[curCarInd].passengersCount++;
     // curPassengerCount++;
     if(RC.cars[curCarInd].passengersCount == RC.carCapacity) {
-        printf("Car %d is full!\n", RC.cars[curCarInd].ID);
         printCurrentCarsState(RC);
         pthread_cond_broadcast(&condFullCar);
     }
@@ -145,11 +144,9 @@ void tryToPressStart(int thread_no){
     passengersKnowingNewStartIndex++;
     // printf("passengersKnowingNewStartIndex: %d\n", passengersKnowingNewStartIndex);
     if(passengersKnowingNewStartIndex == RC.carCapacity){
-        printf("Signaling\n");
         pthread_cond_signal(&condAllReceivedNewStartIndex);
     }
     if(RC.cars[curCarInd].passengersIDs[startIndex] == thread_no) {
-        printf("Waiting until can press start\n");
         pthread_cond_wait(&condCanPressStart, &mutex);
         pressStart(thread_no);
     }
@@ -191,17 +188,13 @@ void* passenger(void *thread_num) {
 
         tryToPressStart(thread_no);
 
-        // printf("How many times would you try to do it???\n");
         // wait for people to get off the car        
         if(RC.cars[curCarInd].passengersCount > 0) {
             pthread_cond_wait(&condOpenDoor, &mutex);
             if(myCurrentCar == -1) die_errno("myCurrentCar = -1");
             while(curCarInd != myCurrentCar) {
-                // printf("CUR CAR IND: %d, thread_no %d\n", curCarInd, thread_no);
-                // printf("What's the problem, Houston? %d\n", RC.cars[curCarInd].ID);
                 pthread_cond_wait(&condOpenDoor, &mutex);
             }
-            printf("TID %d: Leaving car!\n", thread_no);
             myCurrentCar = rmvPassengerFromCar(thread_no);
             if(RC.cars[curCarInd].passengersCount == 0) {
                 clearPassengersIDsFromCar();
@@ -260,24 +253,21 @@ void* car(void *thread_num) {
             if(RC.leftRidesCount == 0) break;
         }
 
-        printOpeningDoor(thread_no);
-
-        pthread_cond_broadcast(&condOpenDoor);
-
-        printf("Waiting for passnegers to leave\n");
-
         if(RC.leftRidesCount == 0) {
-            if(thread_no == RC.cars[curCarInd].ID && RC.cars[curCarInd].passengersCount > 0)
+            if(thread_no == RC.cars[curCarInd].ID && RC.cars[curCarInd].passengersCount > 0) {
+                printOpeningDoor(thread_no);
+                pthread_cond_broadcast(&condOpenDoor);
                 waitUntilCarIsEmpty(thread_no);
+            }
             break;
         }
+        
+        printOpeningDoor(thread_no);
+        pthread_cond_broadcast(&condOpenDoor);
 
         if(RC.cars[thread_no - carTIDsOffset].passengersCount > 0) {
             waitUntilCarIsEmpty(thread_no);
         }
-
-
-        printf("OK. Left\n");
 
         // let people enter the car
         canEnterCar = 1;
@@ -292,8 +282,6 @@ void* car(void *thread_num) {
 
         waitForPressingStart(thread_no);
         startIndex = -1;
-
-        printf("No nie doczekam sie ;-;\n");
         
         printClosingDoor(thread_no);
 

@@ -29,7 +29,7 @@ typedef struct RollerCoaster {
 struct timespec spec;
 
 void printCurrentCarsState(RollerCoaster RC){
-    printf("Printing current cars state:\n");
+    printf("\nPrinting current cars state:\n");
     for(int i = 0; i < RC.carCount; i++){
         printf("ID: %d, ", RC.cars[i].ID);
         printf("Passenger count: %d\n", RC.cars[i].passengersCount);
