@@ -12,6 +12,7 @@ make
 ```
 In Makefile there are default arguments passed to main. You can change them by modifying Makefile.
 Enjoy!
+Please, rate my repo if this was useful. Many thanks :)
 
 ## Author
 Monika Dziedzic, Student of 2nd Year of Computer Science at AGH UST.
