@@ -1,49 +1,6 @@
 #include "utils.h"
 
 RollerCoaster RC;
-pthread_t *psgTIDs, *carTIDs;
-int carTIDsOffset; // car TIDs start from this offset
-int *consequentIDs; // storing there IDs (at first - passenger IDs, then - car IDs)
-int consequentIDsSize;
-
-// current data
-int curCarInd; // which car is currently at the platform
-int canEnterCar; // for passenger
-int canPressStart;
-int startIndex; // index in table of curCarPassengers telling which passenger will press start  
-int passengersKnowingNewStartIndex;
-int leftCarsCount; // if == 0, then all passengers should die
-
-// mutexes and condition variables
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t condPassengerEnterCar = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condOpenDoor = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condFullCar = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condEmptyCar = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condFinishedRide = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condCanArriveNextCar = PTHREAD_COND_INITIALIZER;
-pthread_cond_t condPressedStart = PTHREAD_COND_INITIALIZER; // to wait until START button is pressed
-pthread_cond_t condCanPressStart = PTHREAD_COND_INITIALIZER; // to tell the passenger to press it
-pthread_cond_t condKnownNewStartIndex = PTHREAD_COND_INITIALIZER; // to randomly find which passenger will press start
-pthread_cond_t condAllReceivedNewStartIndex = PTHREAD_COND_INITIALIZER;
-
-void doTheCleanUp() {
-    free(consequentIDs);
-    free(psgTIDs);
-    free(carTIDs);
-    
-    pthread_mutex_destroy(&mutex);
-    pthread_cond_destroy(&condEmptyCar);
-    pthread_cond_destroy(&condFinishedRide);
-    pthread_cond_destroy(&condFullCar);
-    pthread_cond_destroy(&condCanArriveNextCar);
-    pthread_cond_destroy(&condPassengerEnterCar);
-    pthread_cond_destroy(&condOpenDoor);
-    pthread_cond_destroy(&condPressedStart);
-    pthread_cond_destroy(&condCanPressStart);
-    pthread_cond_destroy(&condKnownNewStartIndex);
-    pthread_cond_destroy(&condAllReceivedNewStartIndex);
-}
 
 void pressStart(int thread_no){ // the last person who enters the lift presses the button
     printPressedStart(thread_no);
@@ -158,6 +115,8 @@ void* passenger(void *thread_num) {
     //     die_errno("setting cancel type");
 
     int thread_no = *(int *) thread_num;
+    printf("thread_no %d\n", thread_no);
+
     int myCurrentCar = -1;
 
     pthread_cond_broadcast(&condEmptyCar);
@@ -168,6 +127,7 @@ void* passenger(void *thread_num) {
 
         // wait until passenger can enter the car
         while(!canEnterCar){
+            printf("waiting!\n");
             pthread_cond_wait(&condPassengerEnterCar, &mutex);
 
             if(leftCarsCount == 0 || RC.leftRidesCount == 0) break;
@@ -254,6 +214,8 @@ void waitUntilCarIsEmpty(int thread_no) {
 
 void* car(void *thread_num) {
     int thread_no = *(int *) thread_num;
+
+    printf("thread_no %d\n", thread_no);
     
     pthread_cond_broadcast(&condCanArriveNextCar);
 
@@ -280,6 +242,7 @@ void* car(void *thread_num) {
 
         // let people enter the car
         canEnterCar = 1;
+        printf("TID: %d: Okay, you can now enter the car.\n", thread_no);
         for(int i = 0; i < RC.carCapacity; i++){
             pthread_cond_signal(&condPassengerEnterCar);
         }
@@ -329,11 +292,15 @@ void parse_input(int argc, char **argv) {
     carTIDs = malloc(RC.carCount * sizeof(pthread_t));
 
     consequentIDsSize = RC.totalPassengerCount > RC.carCount ? RC.totalPassengerCount : RC.carCount;
-    consequentIDs = malloc(consequentIDsSize * sizeof(int));
-    for (int i = 0; i < consequentIDsSize; i++)
-        consequentIDs[i] = i;
-    
+    passengerConsequentIDs = malloc(consequentIDsSize * sizeof(int));
+    carConsequentIDs = malloc(consequentIDsSize * sizeof(int));    
+
     carTIDsOffset = RC.totalPassengerCount + 10200;
+
+    for (int i = 0; i < consequentIDsSize; i++) {
+        passengerConsequentIDs[i] = i;
+        carConsequentIDs[i] = i + carTIDsOffset;
+    }
 
     psgTIDs = malloc(RC.totalPassengerCount * sizeof(pthread_t));
 
@@ -346,21 +313,20 @@ void parse_input(int argc, char **argv) {
 }
 
 void createPassengerThreads() {
-    for (int i = 0; i < RC.totalPassengerCount; i++)
-        if(pthread_create(&psgTIDs[i], NULL, &passenger, &consequentIDs[i]) < 0) 
+    for (int i = 0; i < RC.totalPassengerCount; i++) {
+        if(pthread_create(&psgTIDs[i], NULL, &passenger, &passengerConsequentIDs[i]) < 0) 
             die_errno("creating passenger threads");
+        printf("Created a passenger!\n");
+    }
 }
 
 void createCarThreads() {
-    // increment my threads IDs 
     for (int i = 0; i < RC.carCount; i++) {
-        consequentIDs[i] += carTIDsOffset;
-        RC.cars[i].ID = consequentIDs[i];
-    }
-
-    for (int i = 0; i < RC.carCount; i++)
-        if(pthread_create(&carTIDs[i], NULL, &car, &consequentIDs[i]) < 0) 
+        RC.cars[i].ID = carConsequentIDs[i];
+        if(pthread_create(&carTIDs[i], NULL, &car, &carConsequentIDs[i]) < 0) 
             die_errno("creating car threads");
+        printf("Created a car!\n");
+    }
 }
 
 void waitForPassengers(){
